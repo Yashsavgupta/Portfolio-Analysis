@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "portfolio-evaluator"
+version = "0.1.0"
+description = "A Python toolkit for evaluating investment portfolios."
+authors = [{ name = "Portfolio Evaluator Team", email = "team@example.com" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+keywords = ["portfolio", "finance", "evaluation"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7,<9",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
