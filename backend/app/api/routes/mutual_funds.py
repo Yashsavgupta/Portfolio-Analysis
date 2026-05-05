@@ -181,9 +181,12 @@ async def add_mf_holding(
         is_active=True
     )
     
-    # Calculate gain/loss
+    # Calculate gain/loss and tenure
     mf_holding.gain_loss = holding_data.current_value - holding_data.cost_basis
     mf_holding.gain_loss_pct = (mf_holding.gain_loss / holding_data.cost_basis * 100) if holding_data.cost_basis > 0 else 0
+    holding_days = (datetime.utcnow().date() - mf_holding.purchase_date).days
+    mf_holding.holding_days = holding_days
+    mf_holding.is_long_term = holding_days >= 365
     
     db.add(mf_holding)
     db.commit()
@@ -229,9 +232,12 @@ async def update_mf_holding(
     if update_data.plan_type is not None:
         holding.plan_type = update_data.plan_type
     
-    # Recalculate gain/loss
+    # Recalculate gain/loss and tenure
     holding.gain_loss = holding.current_value - holding.cost_basis
     holding.gain_loss_pct = (holding.gain_loss / holding.cost_basis * 100) if holding.cost_basis > 0 else 0
+    holding_days = (datetime.utcnow().date() - holding.purchase_date).days
+    holding.holding_days = holding_days
+    holding.is_long_term = holding_days >= 365
     
     db.commit()
     db.refresh(holding)
@@ -316,20 +322,13 @@ async def compare_funds(
 
 @router.post("/import/indmoney", response_model=INDmoneyImportResponse)
 async def import_indmoney_csv(
-    portfolio_id: int = Query(...),
+    portfolio_id: Optional[int] = Query(None),
+    portfolio_name: Optional[str] = Query(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Import mutual funds from INDmoney CSV export"""
-    # Verify portfolio belongs to current user
-    portfolio = db.query(Portfolio).filter(
-        (Portfolio.id == portfolio_id) & (Portfolio.user_id == current_user.id)
-    ).first()
-    
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-    
     try:
         # Read CSV content
         content = await file.read()
@@ -346,9 +345,28 @@ async def import_indmoney_csv(
                 "errors": validation_errors,
                 "message": "CSV validation failed"
             }
+
+        portfolio = None
+        if portfolio_id is not None:
+            portfolio = db.query(Portfolio).filter(
+                (Portfolio.id == portfolio_id) & (Portfolio.user_id == current_user.id)
+            ).first()
+            if not portfolio:
+                raise HTTPException(status_code=404, detail="Portfolio not found")
+        else:
+            if not portfolio_name:
+                portfolio_name = f"INDmoney Import {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+            portfolio = Portfolio(
+                user_id=current_user.id,
+                name=portfolio_name,
+                type='mutual_funds',
+                description='Imported from INDmoney CSV',
+            )
+            db.add(portfolio)
+            db.flush()
         
         # Parse CSV
-        parsed_holdings, parse_errors = INDmoneyCSVParser.parse_csv_content(csv_content, portfolio_id)
+        parsed_holdings, parse_errors = INDmoneyCSVParser.parse_csv_content(csv_content, portfolio.id)
         
         # Import to database
         imported_count, import_errors = INDmoneyCSVParser.import_holdings_to_db(db, parsed_holdings)
@@ -360,7 +378,8 @@ async def import_indmoney_csv(
             "imported_count": imported_count,
             "total_rows": len(parsed_holdings),
             "errors": all_errors,
-            "message": f"Successfully imported {imported_count} holdings" if imported_count > 0 else "No holdings imported"
+            "message": f"Successfully imported {imported_count} holdings" if imported_count > 0 else "No holdings imported",
+            "portfolio_id": portfolio.id,
         }
     
     except Exception as e:
@@ -400,12 +419,11 @@ async def sync_fund_data(
 ):
     """Trigger sync of mutual fund data from MFAPI"""
     try:
-        # This would typically be called by a background task
-        logger.info("Manual sync of fund data triggered")
-        
+        updated_count = await MutualFundService.sync_all_funds(db)
+        logger.info(f"Manual sync of fund data completed: {updated_count} funds updated")
         return {
             "success": True,
-            "message": "Fund data sync initiated. This runs in the background."
+            "message": f"Fund data sync completed. Updated {updated_count} funds."
         }
     except Exception as e:
         logger.error(f"Error syncing fund data: {str(e)}")

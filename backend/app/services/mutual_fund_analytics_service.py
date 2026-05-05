@@ -148,7 +148,8 @@ class MutualFundAnalyticsService:
             
             holding_data = {
                 'id': holding.id,
-                'fund_id': fund.id,
+                'portfolio_id': holding.portfolio_id,
+                'mutual_fund_id': fund.id,
                 'fund_name': fund.name,
                 'fund_house': fund.fund_house,
                 'category': fund.category,
@@ -164,6 +165,7 @@ class MutualFundAnalyticsService:
                 'source': holding.source,
                 'is_long_term': holding.is_long_term,
                 'holding_days': holding.holding_days,
+                'nav_at_purchase': holding.nav_at_purchase,
                 'fund_1y_return': fund.return_1y,
                 'fund_3y_return': fund.return_3y,
                 'fund_5y_return': fund.return_5y,
@@ -323,7 +325,8 @@ class MutualFundAnalyticsService:
         """
         nav_history = db.query(MutualFundNAVHistory).filter(
             MutualFundNAVHistory.mutual_fund_id == fund_id
-        ).order_by(MutualFundNAVHistory.nav_date.asc()).limit(days).all()
+        ).order_by(MutualFundNAVHistory.nav_date.desc()).limit(days).all()
+        nav_history = list(reversed(nav_history))
         
         fund = db.query(MutualFund).filter(MutualFund.id == fund_id).first()
         

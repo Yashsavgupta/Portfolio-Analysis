@@ -261,6 +261,23 @@ class MutualFundService:
         return db.query(MutualFund).filter(MutualFund.fund_code == fund_code).first()
 
     @staticmethod
+    async def sync_all_funds(db: Session) -> int:
+        """Sync all existing funds in the database from MFAPI.in"""
+        funds = db.query(MutualFund).filter(MutualFund.is_active == True).all()
+        updated_count = 0
+        for fund in funds:
+            if not fund.fund_code:
+                continue
+            fund_details = await MutualFundService.fetch_fund_details(fund.fund_code)
+            if not fund_details:
+                continue
+            nav_history = await MutualFundService.fetch_fund_nav_history(fund.fund_code, limit=252)
+            synced = MutualFundService.sync_fund_to_db(db, fund.fund_code, fund_details, nav_history)
+            if synced:
+                updated_count += 1
+        return updated_count
+
+    @staticmethod
     def calculate_returns(nav_history: List[MutualFundNAVHistory], periods: List[str] = None) -> Dict[str, float]:
         """
         Calculate returns for different periods from NAV history
