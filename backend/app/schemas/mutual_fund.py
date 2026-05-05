@@ -158,6 +158,7 @@ class INDmoneyImportResponse(BaseModel):
     total_rows: int
     errors: List[str] = []
     message: str
+    portfolio_id: Optional[int] = None
 
 
 class ImportValidationResponse(BaseModel):

@@ -5,11 +5,8 @@ import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import MutualFundSummary from '@/components/holdings/MutualFundSummary';
 import MutualFundList from '@/components/holdings/MutualFundList';
-import MutualFundImportModal from '@/components/holdings/MutualFundImportModal';
-import EmptyState from '@/components/ui/EmptyState';
-import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
-import { apiUrl } from '@/lib/api';
-import { getToken } from '@/lib/auth';
+import { apiCall, apiUrl } from '@/lib/api';
+import { getAuthHeaders } from '@/lib/auth';
 
 interface MFSummary {
   total_invested: number;
@@ -23,7 +20,8 @@ interface MFSummary {
 
 interface MFHolding {
   id: number;
-  fund_id: number;
+  portfolio_id: number;
+  mutual_fund_id: number;
   fund_name: string;
   fund_house: string;
   category: string;
@@ -36,58 +34,74 @@ interface MFHolding {
   purchase_date: string;
   plan_type: string;
   source: string;
+  is_long_term: boolean;
+  holding_days?: number;
+  nav_at_purchase?: number;
   fund_1y_return?: number;
   fund_3y_return?: number;
 }
 
 export default function MutualFundsPage() {
-  const [portfolioId, setPortfolioId] = useState<number | null>(null);
+  const [portfolioId, setPortfolioId] = useState<number>(1);
   const [summary, setSummary] = useState<MFSummary | null>(null);
   const [holdings, setHoldings] = useState<MFHolding[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get portfolio ID from URL or use a default
-    const pathParts = window.location.pathname.split('/');
-    const id = pathParts[2] ? parseInt(pathParts[2]) : 1;
-    setPortfolioId(id);
-    fetchMutualFundData(id);
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('portfolio');
+    const portfolio = id ? Number(id) : 1;
+    setPortfolioId(portfolio);
+    fetchMutualFundData(portfolio);
   }, []);
 
   const fetchMutualFundData = async (id: number) => {
     try {
       setLoading(true);
       setError(null);
-      const token = getToken();
-      const headers = {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      };
+      setSyncMessage(null);
 
-      // Fetch summary
-      const summaryRes = await fetch(apiUrl(`/api/mutual-funds/portfolio/${id}/summary`), { headers });
-      if (!summaryRes.ok) throw new Error('Failed to fetch summary');
+      const summaryRes = await fetch(apiUrl(`/api/mutual-funds/portfolio/${id}/summary`), {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
+      if (!summaryRes.ok) throw new Error('Failed to fetch mutual fund summary');
       setSummary(await summaryRes.json());
 
-      // Fetch holdings
-      const holdingsRes = await fetch(apiUrl(`/api/mutual-funds/portfolio/${id}/holdings?limit=50`), { headers });
-      if (!holdingsRes.ok) throw new Error('Failed to fetch holdings');
+      const holdingsRes = await fetch(apiUrl(`/api/mutual-funds/portfolio/${id}/holdings?limit=50`), {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
+      if (!holdingsRes.ok) throw new Error('Failed to fetch mutual fund holdings');
       const data = await holdingsRes.json();
       setHoldings(data.holdings || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : 'An error occurred while fetching mutual fund data');
       console.error('Error fetching mutual fund data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleImportSuccess = () => {
-    setShowImportModal(false);
-    if (portfolioId) {
+  const syncFundData = async () => {
+    try {
+      setSyncing(true);
+      setError(null);
+      setSyncMessage(null);
+
+      const response = await apiCall('/api/mutual-funds/sync/fund-data', 'POST');
+      setSyncMessage(response.message || 'Mutual fund data sync completed successfully.');
       fetchMutualFundData(portfolioId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sync failed.');
+      console.error('Error syncing mutual fund data:', err);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -95,19 +109,26 @@ export default function MutualFundsPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-7xl">
-          {/* Header */}
-          <div className="mb-8 flex items-center justify-between">
+          <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-4xl font-bold">Mutual Funds</h1>
-              <p className="mt-2 text-slate-400">Analyze and manage your mutual fund portfolio</p>
+              <p className="mt-2 text-slate-400">Analyze and manage your mutual fund portfolio.</p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => setShowImportModal(true)}
+                type="button"
+                onClick={syncFundData}
+                disabled={loading || syncing}
+                className="rounded-lg bg-emerald-600 px-6 py-2.5 font-medium text-white hover:bg-emerald-700 transition disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {syncing ? 'Syncing...' : 'Refresh Fund Data'}
+              </button>
+              <Link
+                href="/import-mutual-funds"
                 className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium hover:bg-blue-700 transition"
               >
                 + Import from INDmoney
-              </button>
+              </Link>
               <Link
                 href="/portfolio/mutual-funds/search"
                 className="rounded-lg bg-slate-700 px-6 py-2.5 font-medium hover:bg-slate-600 transition"
@@ -117,143 +138,54 @@ export default function MutualFundsPage() {
             </div>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/30 p-4 text-red-300">
               {error}
             </div>
           )}
 
-          {/* Loading State */}
-          {loading && (
+          {syncMessage && !error && (
+            <div className="mb-6 rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-4 text-emerald-200">
+              {syncMessage}
+            </div>
+          )}
+
+          {loading ? (
             <div className="space-y-6">
               <div className="h-32 rounded-lg bg-slate-800 animate-pulse" />
               <div className="h-96 rounded-lg bg-slate-800 animate-pulse" />
             </div>
-          )}
-
-          {/* Empty State */}
-          {!loading && holdings.length === 0 && !error && (
-            <EmptyState
-              title="No Mutual Fund Holdings"
-              description="You haven't added any mutual funds to this portfolio yet. Import from INDmoney or search for funds to get started."
-              action={
-                <button
-                  onClick={() => setShowImportModal(true)}
-                  className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium hover:bg-blue-700 transition"
+          ) : holdings.length === 0 ? (
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-10 text-center text-slate-300">
+              <h2 className="text-3xl font-semibold text-white">No Mutual Fund Holdings</h2>
+              <p className="mt-3 text-slate-400">
+                You haven't added any mutual funds to this portfolio yet. Import from INDmoney or search for funds to get started.
+              </p>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Link
+                  href="/import-mutual-funds"
+                  className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 transition"
                 >
-                  Import from INDmoney
-                </button>
-              }
-            />
-          )}
-
-          {/* Summary Cards */}
-          {!loading && summary && holdings.length > 0 && (
+                  Import Funds
+                </Link>
+                <Link
+                  href="/portfolio/mutual-funds/search"
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-6 py-3 font-medium text-slate-200 hover:bg-slate-700 transition"
+                >
+                  Search Funds
+                </Link>
+              </div>
+            </div>
+          ) : (
             <>
-              <MutualFundSummary summary={summary} />
-
-              {/* Holdings List */}
+              {summary ? <MutualFundSummary summary={summary} /> : null}
               <div className="mt-10">
                 <MutualFundList holdings={holdings} />
               </div>
             </>
           )}
-
-          {/* Import Modal */}
-          {showImportModal && portfolioId && (
-            <MutualFundImportModal
-              portfolioId={portfolioId}
-              onClose={handleImportSuccess}
-            />
-          )}
         </div>
       </div>
     </ProtectedRoute>
-  );
-}
-      />
-    );
-  }
-
-  const totalMFValue = mfHoldings.reduce((sum, h) => sum + h.market_value, 0);
-  const totalMFInvested = mfHoldings.reduce((sum, h) => sum + h.invested_value, 0);
-  const totalMFReturn = totalMFValue - totalMFInvested;
-  const totalMFPreviousValue = mfHoldings.reduce((sum, h) => sum + h.previous_value, 0);
-  const totalMFDayPnl = mfHoldings.reduce((sum, h) => sum + h.day_pnl, 0);
-  const totalMFDayChangePct = totalMFPreviousValue > 0 ? (totalMFDayPnl / totalMFPreviousValue) * 100 : 0;
-
-  return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="rounded-3xl border border-slate-800 bg-slate-950/60 p-5">
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Total MF Value</div>
-          <div className="mt-3 text-2xl font-semibold text-slate-100">{formatCurrency(totalMFValue)}</div>
-        </Card>
-
-        <Card className="rounded-3xl border border-slate-800 bg-slate-950/60 p-5">
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Total Return</div>
-          <div className={`mt-3 text-2xl font-semibold ${totalMFReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {formatCurrency(totalMFReturn)}
-          </div>
-        </Card>
-
-        <Card className="rounded-3xl border border-slate-800 bg-slate-950/60 p-5">
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Daily Change</div>
-          <div className={`mt-3 text-2xl font-semibold ${totalMFDayPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {formatPercent(totalMFDayChangePct)}
-          </div>
-        </Card>
-
-        <Card className="rounded-3xl border border-slate-800 bg-slate-950/60 p-5">
-          <div className="text-xs uppercase tracking-[0.24em] text-slate-500">MF Holdings</div>
-          <div className="mt-3 text-2xl font-semibold text-slate-100">{mfHoldings.length}</div>
-        </Card>
-      </div>
-
-      {/* Mutual Funds Holdings Table */}
-      <Card className="p-6">
-        <h2 className="mb-6 text-xl font-semibold">Mutual Fund Holdings</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-700">
-                <th className="px-4 py-3 text-left font-medium text-slate-300">Symbol</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-300">Fund Name</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-300">Price</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-300">Day Change</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-300">Value</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-300">Weight</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-300">Return</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-300">Signal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mfHoldings.map((holding, idx) => (
-                <tr key={`${holding.symbol}-${idx}`} className="border-b border-slate-800 hover:bg-slate-800/50">
-                  <td className="px-4 py-3 font-medium text-slate-100">{holding.symbol}</td>
-                  <td className="px-4 py-3 text-slate-300">{holding.name}</td>
-                  <td className="px-4 py-3 text-right text-slate-300">{formatCurrency(holding.price)}</td>
-                  <td className={`px-4 py-3 text-right font-medium ${holding.day_change_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatPercent(holding.day_change_pct)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-300">{formatCurrency(holding.market_value)}</td>
-                  <td className="px-4 py-3 text-right text-slate-300">{formatPercent(holding.weight)}</td>
-                  <td className={`px-4 py-3 text-right font-medium ${holding.total_return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatPercent(holding.total_return_pct)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${signalClasses(holding.signal)}`}>
-                      {holding.signal}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
   );
 }
