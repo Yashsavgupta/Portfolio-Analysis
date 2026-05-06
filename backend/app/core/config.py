@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pathlib import Path
 
 
 class Settings(BaseSettings):
@@ -11,7 +12,7 @@ class Settings(BaseSettings):
     ZERODHA_API_SECRET: str = ""
 
     class Config:
-        env_file = '.env'
+        env_file = str(Path(__file__).parent.parent.parent / '.env')
         env_file_encoding = 'utf-8'
 
 

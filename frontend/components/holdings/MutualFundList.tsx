@@ -58,7 +58,7 @@ export default function MutualFundList({ holdings }: MutualFundListProps) {
                 <tr key={holding.id} className="border-b border-slate-800 hover:bg-slate-800/50">
                   <td className="px-4 py-3 text-slate-100 font-medium">{holding.fund_name}</td>
                   <td className="px-4 py-3">{holding.fund_house}</td>
-                  <td className="px-4 py-3 text-right">{holding.units.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right">{holding.units !== null ? holding.units.toFixed(2) : 'N/A'}</td>
                   <td className="px-4 py-3 text-right">{formatCurrency(holding.current_nav)}</td>
                   <td className="px-4 py-3 text-right">{formatCurrency(holding.cost_basis)}</td>
                   <td className="px-4 py-3 text-right">{formatCurrency(holding.current_value)}</td>
