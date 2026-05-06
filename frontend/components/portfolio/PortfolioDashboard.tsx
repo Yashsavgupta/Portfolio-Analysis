@@ -532,7 +532,7 @@ export default function PortfolioDashboard() {
                   <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={(value) => `${value}%`} />
                   <Tooltip
                     formatter={(value: number, name: string) => [
-                      `${value.toFixed(2)}%`,
+                      value === null || value === undefined ? 'N/A' : `${value.toFixed(2)}%`,
                       name === 'portfolio' ? 'Portfolio' : getIndexName(name)
                     ]}
                     labelFormatter={(label) => `Date: ${label}`}
@@ -586,7 +586,7 @@ export default function PortfolioDashboard() {
                           <Cell key={`${entry.name}-${index}`} fill={DONUT_COLORS[index % DONUT_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => `${value.toFixed(2)}%`} />
+                      <Tooltip formatter={(value: number) => value === null || value === undefined ? 'N/A' : `${value.toFixed(2)}%`} />
                     </PieChart>
                   </ResponsiveContainer>
                 )}

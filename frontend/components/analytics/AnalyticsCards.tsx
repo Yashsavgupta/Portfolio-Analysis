@@ -104,7 +104,7 @@ export function PortfolioOverviewCard({ portfolioId }: AnalyticsProps) {
             ₹{data.unrealized_pnl.toLocaleString('en-IN')}
           </p>
           <p className={`text-sm mt-1 ${data.unrealized_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {data.unrealized_pnl_pct.toFixed(2)}%
+            {data.unrealized_pnl_pct !== null ? data.unrealized_pnl_pct.toFixed(2) : 'N/A'}%
           </p>
         </div>
       </Card>
@@ -306,12 +306,12 @@ export function RiskHealthCard({ portfolioId }: AnalyticsProps) {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-slate-800/50 p-4 rounded-lg">
             <p className="text-slate-400 text-sm">Long-term Holdings</p>
-            <p className="text-2xl font-bold text-white">{data.long_term_qty_pct.toFixed(1)}%</p>
+            <p className="text-2xl font-bold text-white">{data.long_term_qty_pct !== null ? data.long_term_qty_pct.toFixed(1) : 'N/A'}%</p>
           </div>
           <div className="bg-slate-800/50 p-4 rounded-lg">
             <p className="text-slate-400 text-sm">Diversification Score</p>
             <p className={`text-2xl font-bold ${getDiversificationColor(data.diversification_score)}`}>
-              {data.diversification_score.toFixed(0)}
+              {data.diversification_score !== null ? data.diversification_score.toFixed(0) : 'N/A'}
             </p>
           </div>
         </div>
@@ -323,7 +323,7 @@ export function RiskHealthCard({ portfolioId }: AnalyticsProps) {
               {data.holdings_below_52w_high.map((holding: any, idx: number) => (
                 <div key={idx} className="flex justify-between text-sm">
                   <p className="text-slate-300">{holding.symbol}</p>
-                  <p className="text-yellow-400">{holding.pct_below.toFixed(1)}% below</p>
+                  <p className="text-yellow-400">{holding.pct_below !== null ? holding.pct_below.toFixed(1) : 'N/A'}% below</p>
                 </div>
               ))}
             </div>
@@ -387,7 +387,7 @@ export function ValuationMetricsCard({ portfolioId }: AnalyticsProps) {
           </div>
           <div className="rounded-lg bg-slate-800/50 p-4">
             <p className="text-sm text-slate-400">Benchmark PE</p>
-            <p className="mt-1 text-2xl font-bold text-blue-400">{data.benchmark_pe.toFixed(2)}</p>
+            <p className="mt-1 text-2xl font-bold text-blue-400">{data.benchmark_pe !== null ? data.benchmark_pe.toFixed(2) : 'N/A'}</p>
           </div>
         </div>
 
@@ -467,7 +467,7 @@ export function GrowthForecastCard({ portfolioId }: AnalyticsProps) {
           <div className="rounded-lg bg-slate-800/50 px-4 py-3 text-right">
             <p className="text-xs text-slate-400">Average Target Upside</p>
             <p className={`text-xl font-bold ${data.avg_target_upside >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {data.avg_target_upside.toFixed(2)}%
+              {data.avg_target_upside !== null ? data.avg_target_upside.toFixed(2) : 'N/A'}%
             </p>
           </div>
         </div>
@@ -492,7 +492,7 @@ export function GrowthForecastCard({ portfolioId }: AnalyticsProps) {
                     </p>
                   </div>
                   <p className={`text-lg font-semibold ${holding.upside_downside_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {holding.upside_downside_pct.toFixed(2)}%
+                    {holding.upside_downside_pct !== null ? holding.upside_downside_pct.toFixed(2) : 'N/A'}%
                   </p>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
