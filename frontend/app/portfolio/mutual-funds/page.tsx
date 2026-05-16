@@ -65,17 +65,13 @@ export default function MutualFundsPage() {
       setSyncMessage(null);
 
       const summaryRes = await fetch(apiUrl(`/api/mutual-funds/portfolio/${id}/summary`), {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: getAuthHeaders() as HeadersInit,
       });
       if (!summaryRes.ok) throw new Error('Failed to fetch mutual fund summary');
       setSummary(await summaryRes.json());
 
       const holdingsRes = await fetch(apiUrl(`/api/mutual-funds/portfolio/${id}/holdings?limit=50`), {
-        headers: {
-          ...getAuthHeaders(),
-        },
+        headers: getAuthHeaders() as HeadersInit,
       });
       if (!holdingsRes.ok) throw new Error('Failed to fetch mutual fund holdings');
       const data = await holdingsRes.json();
@@ -159,7 +155,7 @@ export default function MutualFundsPage() {
             <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-10 text-center text-slate-300">
               <h2 className="text-3xl font-semibold text-white">No Mutual Fund Holdings</h2>
               <p className="mt-3 text-slate-400">
-                You haven't added any mutual funds to this portfolio yet. Import from INDmoney or search for funds to get started.
+                You have not added any mutual funds to this portfolio yet. Import from INDmoney or search for funds to get started.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link
