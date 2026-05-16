@@ -51,7 +51,7 @@ export default function SignupForm() {
         </div>
       )}
 
-      <label className="block text-sm text-slate-300">
+      <label className="block text-sm font-medium text-slate-300">
         Full name
         <input
           type="text"
@@ -59,11 +59,11 @@ export default function SignupForm() {
           onChange={(e) => setFullName(e.target.value)}
           placeholder="John Doe"
           required
-          className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none focus:border-sky-500"
+          className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500/40 placeholder:text-slate-600"
         />
       </label>
 
-      <label className="block text-sm text-slate-300">
+      <label className="block text-sm font-medium text-slate-300">
         Email
         <input
           type="email"
@@ -71,11 +71,11 @@ export default function SignupForm() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="your@email.com"
           required
-          className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none focus:border-sky-500"
+          className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500/40 placeholder:text-slate-600"
         />
       </label>
 
-      <label className="block text-sm text-slate-300">
+      <label className="block text-sm font-medium text-slate-300">
         Password
         <input
           type="password"
@@ -83,11 +83,11 @@ export default function SignupForm() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
           required
-          className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none focus:border-sky-500"
+          className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500/40 placeholder:text-slate-600"
         />
       </label>
 
-      <label className="block text-sm text-slate-300">
+      <label className="block text-sm font-medium text-slate-300">
         Confirm Password
         <input
           type="password"
@@ -95,14 +95,14 @@ export default function SignupForm() {
           onChange={(e) => setConfirmPassword(e.target.value)}
           placeholder="••••••••"
           required
-          className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none focus:border-sky-500"
+          className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-slate-100 outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500/40 placeholder:text-slate-600"
         />
       </label>
 
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full rounded-2xl bg-sky-500 px-4 py-3 font-semibold text-slate-950 hover:bg-sky-400 disabled:bg-slate-600 disabled:cursor-not-allowed"
+        className="w-full rounded-xl bg-sky-500 px-4 py-3 font-semibold text-white shadow-lg shadow-sky-500/20 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isLoading ? 'Creating account...' : 'Sign up'}
       </button>

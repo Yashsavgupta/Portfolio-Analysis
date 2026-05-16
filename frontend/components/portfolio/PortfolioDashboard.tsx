@@ -400,7 +400,11 @@ export default function PortfolioDashboard() {
   }
 
   if (error && !dashboard) {
-    const isMissingPortfolio = error.toLowerCase().includes('upload holdings') || error.toLowerCase().includes('no imported portfolio');
+    const isMissingPortfolio =
+      error.toLowerCase().includes('upload holdings') ||
+      error.toLowerCase().includes('no imported portfolio') ||
+      error.toLowerCase().includes('no holdings') ||
+      error.toLowerCase().includes('portfolio has no');
     return (
       <EmptyState
         title={isMissingPortfolio ? 'Import Holdings To Start' : 'Portfolio Dashboard Error'}

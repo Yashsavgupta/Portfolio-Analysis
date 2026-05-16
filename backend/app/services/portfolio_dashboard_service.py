@@ -63,16 +63,26 @@ def _load_context(user_id: int, db: Session, portfolio_id: Optional[int]) -> Por
         db.query(Portfolio)
         .options(joinedload(Portfolio.holdings).joinedload(Holding.instrument))
         .filter(Portfolio.user_id == user_id)
+        # Exclude mutual-fund-only portfolios so stock imports and MF imports don't shadow each other
+        .filter(Portfolio.type != "mutual_funds")
         .order_by(Portfolio.id.desc())
     )
     if portfolio_id is not None:
         query = query.filter(Portfolio.id == portfolio_id)
 
-    portfolio = query.first()
-    if not portfolio:
-        raise ValueError("No imported portfolio found. Upload holdings first.")
+    # Walk portfolios newest-first and pick the first one that actually has stock holdings
+    portfolios = query.all()
+    portfolio = None
+    holdings = []
+    for candidate in portfolios:
+        candidate_holdings = list(candidate.holdings)
+        if candidate_holdings:
+            portfolio = candidate
+            holdings = candidate_holdings
+            break
 
-    holdings = list(portfolio.holdings)
+    if not portfolio:
+        raise ValueError("Portfolio has no holdings.")
     if not holdings:
         raise ValueError("Portfolio has no holdings.")
 

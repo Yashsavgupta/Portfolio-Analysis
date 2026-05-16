@@ -56,11 +56,11 @@ class MutualFundService:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{MFAPI_BASE_URL}/{fund_code}/",
+                    f"{MFAPI_BASE_URL}/{fund_code}",
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status == 200:
-                        return await response.json()
+                        return await response.json(content_type=None)
                     else:
                         logger.warning(f"Fund {fund_code} not found: {response.status}")
                         return None
@@ -83,11 +83,11 @@ class MutualFundService:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{MFAPI_BASE_URL}/{fund_code}/series/Direct/nav/",
+                    f"{MFAPI_BASE_URL}/{fund_code}",
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status == 200:
-                        data = await response.json()
+                        data = await response.json(content_type=None)
                         nav_data = data.get('data', [])[:limit]
                         logger.info(f"Fetched {len(nav_data)} NAV records for {fund_code}")
                         return nav_data
@@ -261,20 +261,119 @@ class MutualFundService:
         return db.query(MutualFund).filter(MutualFund.fund_code == fund_code).first()
 
     @staticmethod
+    async def _search_scheme_code(fund_name: str) -> Optional[str]:
+        """Search mfapi.in for the best matching scheme code for a fund name."""
+        import difflib
+        try:
+            async with aiohttp.ClientSession() as session:
+                import urllib.parse
+                query = urllib.parse.quote_plus(fund_name[:40])
+                async with session.get(
+                    f"{MFAPI_BASE_URL}/search?q={query}",
+                    timeout=aiohttp.ClientTimeout(total=8),
+                ) as resp:
+                    results = await resp.json(content_type=None)
+            if not results:
+                return None
+            names = [r["schemeName"] for r in results]
+            matches = difflib.get_close_matches(fund_name, names, n=1, cutoff=0.3)
+            if matches:
+                idx = names.index(matches[0])
+                return str(results[idx]["schemeCode"])
+            return str(results[0]["schemeCode"])
+        except Exception:
+            return None
+
+    @staticmethod
     async def sync_all_funds(db: Session) -> int:
-        """Sync all existing funds in the database from MFAPI.in"""
+        """Sync all funds: resolve real scheme codes, fetch NAV history, compute & save returns + risk metrics."""
+        import math, statistics as stats_lib
+
+        RISK_FREE_RATE = 6.5  # Indian 91-day T-bill approximate annualised %
+
         funds = db.query(MutualFund).filter(MutualFund.is_active == True).all()
         updated_count = 0
+
         for fund in funds:
-            if not fund.fund_code:
-                continue
-            fund_details = await MutualFundService.fetch_fund_details(fund.fund_code)
-            if not fund_details:
-                continue
-            nav_history = await MutualFundService.fetch_fund_nav_history(fund.fund_code, limit=252)
-            synced = MutualFundService.sync_fund_to_db(db, fund.fund_code, fund_details, nav_history)
-            if synced:
+            try:
+                # Resolve a real mfapi.in scheme code if we have a fake/generated one
+                scheme_code = fund.fund_code
+                if not scheme_code or scheme_code.startswith("MF_") or scheme_code.startswith("IND_"):
+                    scheme_code = await MutualFundService._search_scheme_code(fund.name or "")
+                    if not scheme_code:
+                        logger.warning(f"Could not find scheme code for: {fund.name}")
+                        continue
+
+                # Fetch full NAV history (up to 5 years = ~1825 records)
+                nav_history_raw = await MutualFundService.fetch_fund_nav_history(scheme_code, limit=1825)
+                if not nav_history_raw:
+                    continue
+
+                # Fetch fund metadata to update category/house
+                fund_details = await MutualFundService.fetch_fund_details(scheme_code)
+                if fund_details:
+                    meta = fund_details.get("meta", {})
+                    fund.fund_code = scheme_code
+                    if meta.get("fund_house"):
+                        fund.fund_house = meta["fund_house"]
+                    if meta.get("category"):
+                        fund.category = meta["category"]
+                    if meta.get("scheme_type"):
+                        fund.fund_type = meta["scheme_type"]
+
+                # Update current NAV from latest record
+                if nav_history_raw:
+                    try:
+                        latest = nav_history_raw[0]
+                        fund.current_nav = float(latest.get("nav", fund.current_nav or 0))
+                        fund.nav_date = datetime.strptime(latest["date"], "%d-%m-%Y").date()
+                    except Exception:
+                        pass
+
+                # Save NAV history records to DB
+                MutualFundService._save_nav_history(db, fund.id, nav_history_raw)
+                db.flush()
+
+                # Pull saved history as ORM objects for metric computation
+                nav_history_db = (
+                    db.query(MutualFundNAVHistory)
+                    .filter(MutualFundNAVHistory.mutual_fund_id == fund.id)
+                    .order_by(MutualFundNAVHistory.nav_date.desc())
+                    .all()
+                )
+
+                # ── Returns ────────────────────────────────────────────────
+                returns = MutualFundService.calculate_returns(
+                    nav_history_db,
+                    periods=["1w", "1m", "3m", "6m", "1y", "3y", "5y"],
+                )
+                fund.return_1w = returns.get("1w")
+                fund.return_1m = returns.get("1m")
+                fund.return_3m = returns.get("3m")
+                fund.return_6m = returns.get("6m")
+                fund.return_1y = returns.get("1y")
+                fund.return_3y = returns.get("3y")
+                fund.return_5y = returns.get("5y")
+
+                # ── Risk metrics ───────────────────────────────────────────
+                risk = MutualFundService.calculate_risk_metrics(nav_history_db)
+                daily_std = risk.get("std_dev_1y")  # daily std dev in %
+                fund.std_dev_1y = round(daily_std * math.sqrt(252), 2) if daily_std else None
+                fund.max_drawdown = round(risk.get("max_drawdown", 0), 2) if risk.get("max_drawdown") is not None else None
+
+                # Sharpe ratio = (1Y return - risk-free rate) / annualised std dev
+                if fund.return_1y is not None and fund.std_dev_1y and fund.std_dev_1y > 0:
+                    fund.sharpe_ratio = round((fund.return_1y - RISK_FREE_RATE) / fund.std_dev_1y, 2)
+
+                fund.last_updated = datetime.utcnow()
+                db.commit()
                 updated_count += 1
+                logger.info(f"Synced {fund.name}: 1Y={fund.return_1y}, Sharpe={fund.sharpe_ratio}, StdDev={fund.std_dev_1y}")
+
+            except Exception as e:
+                logger.error(f"Error syncing fund {fund.name}: {e}")
+                db.rollback()
+
         return updated_count
 
     @staticmethod
@@ -356,15 +455,18 @@ class MutualFundService:
                 import statistics
                 metrics['std_dev_1y'] = statistics.stdev(daily_returns)
         
-        # Calculate maximum drawdown
-        if nav_history:
-            peak = nav_history[0].nav_value
-            max_drawdown = 0
-            for record in nav_history:
+        # Max drawdown over 3 years in chronological order (oldest→newest)
+        three_year_records = nav_history[:min(len(nav_history), 756)]  # ~3Y of trading days
+        if three_year_records:
+            chronological = list(reversed(three_year_records))
+            peak = chronological[0].nav_value
+            max_drawdown = 0.0
+            for record in chronological:
+                if record.nav_value > peak:
+                    peak = record.nav_value
                 drawdown = (peak - record.nav_value) / peak * 100
-                max_drawdown = max(max_drawdown, drawdown)
-                peak = max(peak, record.nav_value)
-            
+                if drawdown > max_drawdown:
+                    max_drawdown = drawdown
             metrics['max_drawdown'] = max_drawdown
         
         return metrics
