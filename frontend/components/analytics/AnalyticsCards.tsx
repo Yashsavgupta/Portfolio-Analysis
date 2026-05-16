@@ -55,9 +55,9 @@ export function PortfolioOverviewCard({ portfolioId }: AnalyticsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioId]);
 
   const fetchAnalytics = async () => {
@@ -123,9 +123,9 @@ export function SectorSegmentationCard({ portfolioId }: AnalyticsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioId]);
 
   const fetchAnalytics = async () => {
@@ -189,9 +189,9 @@ export function TaxSnapshotCard({ portfolioId }: AnalyticsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioId]);
 
   const fetchAnalytics = async () => {
@@ -263,9 +263,9 @@ export function RiskHealthCard({ portfolioId }: AnalyticsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioId]);
 
   const fetchAnalytics = async () => {
@@ -339,9 +339,9 @@ export function ValuationMetricsCard({ portfolioId }: AnalyticsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioId]);
 
   const fetchAnalytics = async () => {
@@ -428,9 +428,9 @@ export function GrowthForecastCard({ portfolioId }: AnalyticsProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchAnalytics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portfolioId]);
 
   const fetchAnalytics = async () => {

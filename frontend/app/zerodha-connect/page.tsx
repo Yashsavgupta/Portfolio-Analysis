@@ -22,17 +22,17 @@ function ZerodhaConnectContent() {
   const requestToken = searchParams.get('request_token');
 
   // Check connection status on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     checkStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle OAuth callback
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (requestToken) {
       completeConnection(requestToken);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestToken]);
 
   const checkStatus = async () => {

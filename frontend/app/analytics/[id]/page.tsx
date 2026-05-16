@@ -10,11 +10,20 @@ import {
   GrowthForecastCard,
 } from '@/components/analytics/AnalyticsCards';
 import Card from '@/components/ui/Card';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 export default function AnalyticsDashboard() {
   const params = useParams();
   const portfolioId = parseInt(params.id as string);
 
+  return (
+    <ProtectedRoute>
+      <AnalyticsDashboardContent portfolioId={portfolioId} />
+    </ProtectedRoute>
+  );
+}
+
+function AnalyticsDashboardContent({ portfolioId }: { portfolioId: number }) {
   return (
     <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
       <div className="mx-auto max-w-7xl">
