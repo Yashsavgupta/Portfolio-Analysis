@@ -7,6 +7,7 @@ import MutualFundSummary from '@/components/holdings/MutualFundSummary';
 import MutualFundList from '@/components/holdings/MutualFundList';
 import { apiCall, apiUrl } from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
+import MFNavTabs from '@/components/mf/MFNavTabs';
 
 interface MFSummary {
   total_invested: number;
@@ -42,7 +43,7 @@ interface MFHolding {
 }
 
 export default function MutualFundsPage() {
-  const [portfolioId, setPortfolioId] = useState<number>(1);
+  const [portfolioId, setPortfolioId] = useState<number | null>(null);
   const [summary, setSummary] = useState<MFSummary | null>(null);
   const [holdings, setHoldings] = useState<MFHolding[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,21 +53,57 @@ export default function MutualFundsPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const id = params.get('portfolio');
-    const portfolio = id ? Number(id) : 1;
-    setPortfolioId(portfolio);
-    fetchMutualFundData(portfolio);
+    const idParam = params.get('portfolio');
+    if (idParam) {
+      const id = Number(idParam);
+      setPortfolioId(id);
+      fetchMutualFundData(id);
+    } else {
+      // Auto-detect the user's most recent MF portfolio
+      fetchMutualFundData(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchMutualFundData = async (id: number) => {
+  const fetchMutualFundData = async (id: number | null) => {
     try {
       setLoading(true);
       setError(null);
       setSyncMessage(null);
 
+      if (id === null) {
+        // Use the auto-detect endpoint to find the user's MF portfolio
+        const autoRes = await fetch(apiUrl('/api/mutual-funds/my-portfolio/summary'), {
+          headers: getAuthHeaders() as HeadersInit,
+        });
+        if (autoRes.status === 404) {
+          setSummary(null);
+          setHoldings([]);
+          return;
+        }
+        if (!autoRes.ok) throw new Error('Failed to fetch mutual fund summary');
+        const autoData = await autoRes.json();
+        const detectedId: number = autoData.portfolio_id;
+        setPortfolioId(detectedId);
+        setSummary(autoData);
+
+        const holdingsRes = await fetch(apiUrl(`/api/mutual-funds/portfolio/${detectedId}/holdings?limit=50`), {
+          headers: getAuthHeaders() as HeadersInit,
+        });
+        if (!holdingsRes.ok) throw new Error('Failed to fetch mutual fund holdings');
+        const holdingsData = await holdingsRes.json();
+        setHoldings(holdingsData.holdings || []);
+        return;
+      }
+
       const summaryRes = await fetch(apiUrl(`/api/mutual-funds/portfolio/${id}/summary`), {
         headers: getAuthHeaders() as HeadersInit,
       });
+      if (summaryRes.status === 404) {
+        setSummary(null);
+        setHoldings([]);
+        return;
+      }
       if (!summaryRes.ok) throw new Error('Failed to fetch mutual fund summary');
       setSummary(await summaryRes.json());
 
@@ -105,7 +142,7 @@ export default function MutualFundsPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-4xl font-bold">Mutual Funds</h1>
               <p className="mt-2 text-slate-400">Analyze and manage your mutual fund portfolio.</p>
@@ -125,14 +162,10 @@ export default function MutualFundsPage() {
               >
                 + Import from INDmoney
               </Link>
-              <Link
-                href="/portfolio/mutual-funds/search"
-                className="rounded-lg bg-slate-700 px-6 py-2.5 font-medium hover:bg-slate-600 transition"
-              >
-                Search Funds
-              </Link>
             </div>
           </div>
+
+          <MFNavTabs />
 
           {error && (
             <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/30 p-4 text-red-300">
