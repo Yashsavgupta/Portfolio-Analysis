@@ -18,15 +18,15 @@ class INDmoneyCSVParser:
 
     # Expected CSV columns - these can vary but these are common
     POSSIBLE_COLUMNS = {
-        'fund_name': ['Fund Name', 'fund_name', 'Fund', 'Name'],
-        'fund_house': ['Fund House', 'fund_house', 'AMC', 'Asset Management Company'],
+        'fund_name': ['Scheme Name', 'Fund Name', 'fund_name', 'Fund', 'Name', 'Scheme'],
+        'fund_house': ['Fund House', 'fund_house', 'AMC', 'Asset Management Company', 'Folio'],
         'isin': ['ISIN', 'isin', 'Scheme ISIN'],
-        'units': ['Units', 'units', 'Quantity', 'Qty', 'Holdings'],
-        'nav': ['NAV', 'nav', 'Unit Price', 'Price'],
-        'value': ['Value', 'value', 'Current Value', 'Market Value', 'Amount'],
-        'cost_basis': ['Cost', 'cost_basis', 'Investment Amount', 'Purchase Value'],
-        'purchase_date': ['Purchase Date', 'purchase_date', 'Date', 'Investment Date'],
-        'plan_type': ['Plan', 'plan_type', 'Plan Type', 'Investment Plan'],
+        'units': ['Units', 'units', 'Quantity', 'Qty', 'Holdings', 'Balance Units'],
+        'nav': ['NAV', 'nav', 'Unit Price', 'Price', 'Current NAV', 'Latest NAV'],
+        'value': ['Current Value', 'Value', 'value', 'Market Value', 'Amount', 'Present Value'],
+        'cost_basis': ['Invested Value', 'Cost', 'cost_basis', 'Investment Amount', 'Purchase Value', 'Total Invested'],
+        'purchase_date': ['Purchase Date', 'purchase_date', 'Date', 'Investment Date', 'Start Date'],
+        'plan_type': ['Plan', 'plan_type', 'Plan Type', 'Investment Plan', 'Option'],
     }
 
     @staticmethod
@@ -110,44 +110,59 @@ class INDmoneyCSVParser:
         return mapping
 
     @staticmethod
+    def _parse_number(value: str, default: float = 0.0) -> float:
+        """Parse a number string, handling commas and empty values."""
+        if not value or not str(value).strip():
+            return default
+        try:
+            return float(str(value).replace(',', '').strip())
+        except (ValueError, TypeError):
+            return default
+
+    @staticmethod
     def _parse_row(row: Dict[str, str], column_mapping: Dict[str, str], portfolio_id: int) -> Dict[str, Any]:
         """
         Parse a single CSV row
-        
+
         Args:
             row: CSV row as dictionary
             column_mapping: Column mapping from _detect_columns
             portfolio_id: Portfolio ID
-            
+
         Returns:
             Parsed holding dictionary or None
         """
         try:
             # Extract values
-            fund_name = row.get(column_mapping.get('fund_name', '')).strip()
-            fund_house = row.get(column_mapping.get('fund_house', ''), '').strip() or 'Unknown'
-            isin = row.get(column_mapping.get('isin', ''), '').strip() or None
-            
-            units = float(row.get(column_mapping.get('units', ''), 0))
-            nav = float(row.get(column_mapping.get('nav', ''), 0))
-            current_value = float(row.get(column_mapping.get('value', ''), 0))
-            cost_basis = float(row.get(column_mapping.get('cost_basis', ''), 0))
-            
-            # Parse purchase date
+            fund_name = (row.get(column_mapping.get('fund_name', '')) or '').strip()
+            fund_house = (row.get(column_mapping.get('fund_house', ''), '') or '').strip() or 'Unknown'
+            isin = (row.get(column_mapping.get('isin', ''), '') or '').strip() or None
+
+            units = INDmoneyCSVParser._parse_number(row.get(column_mapping.get('units', ''), ''))
+            nav = INDmoneyCSVParser._parse_number(row.get(column_mapping.get('nav', ''), ''))
+            current_value = INDmoneyCSVParser._parse_number(row.get(column_mapping.get('value', ''), ''))
+            cost_basis = INDmoneyCSVParser._parse_number(row.get(column_mapping.get('cost_basis', ''), ''))
+
+            # Purchase date is optional — default to today if not present or unparseable
             purchase_date_str = row.get(column_mapping.get('purchase_date', ''), '')
             purchase_date = INDmoneyCSVParser._parse_date(purchase_date_str)
-            
             if not purchase_date:
-                raise ValueError(f"Invalid purchase date: {purchase_date_str}")
-            
+                purchase_date = datetime.utcnow().date()
+
             # Plan type
-            plan_type = row.get(column_mapping.get('plan_type', ''), 'direct').strip().lower()
-            if plan_type not in ['direct', 'regular']:
+            plan_type = (row.get(column_mapping.get('plan_type', ''), '') or '').strip().lower()
+            if 'regular' in plan_type:
+                plan_type = 'regular'
+            else:
                 plan_type = 'direct'
-            
+
             if not fund_name:
                 raise ValueError("Fund name is empty")
-            
+
+            # Skip rows where both units and value are zero (likely summary/footer rows)
+            if units == 0 and current_value == 0:
+                return None
+
             return {
                 'fund_name': fund_name,
                 'fund_house': fund_house,
@@ -161,7 +176,7 @@ class INDmoneyCSVParser:
                 'portfolio_id': portfolio_id,
                 'source': 'indmoney'
             }
-        
+
         except Exception as e:
             logger.error(f"Error parsing row: {str(e)}")
             raise
@@ -246,30 +261,50 @@ class INDmoneyCSVParser:
                         ).first()
                     
                     if not mutual_fund:
-                        # Create new mutual fund record
-                        mutual_fund = MutualFund(
-                            isin=holding_data.get('isin') or f"MF_{holding_data['fund_name'].replace(' ', '_')}",
-                            fund_code=f"MF_{holding_data['fund_name'].replace(' ', '_')}",
-                            name=holding_data['fund_name'],
-                            fund_house=holding_data['fund_house'],
-                            category='Mutual Fund',
-                            current_nav=holding_data.get('nav_at_purchase', 0),
-                            is_active=True
-                        )
-                        db.add(mutual_fund)
-                        db.flush()  # Get the ID
+                        # Generate stable codes — truncate to avoid DB length issues
+                        safe_name = holding_data['fund_name'].replace(' ', '_')[:80]
+                        generated_isin = holding_data.get('isin') or f"MF_{safe_name}"
+                        generated_code = f"MF_{safe_name}"
+
+                        # Check again by generated isin/code to avoid duplicate-key errors on reimport
+                        mutual_fund = db.query(MutualFund).filter(
+                            MutualFund.isin == generated_isin
+                        ).first()
+
+                        if not mutual_fund:
+                            mutual_fund = MutualFund(
+                                isin=generated_isin,
+                                fund_code=generated_code,
+                                name=holding_data['fund_name'],
+                                fund_house=holding_data['fund_house'],
+                                category='Mutual Fund',
+                                current_nav=holding_data.get('nav_at_purchase', 0),
+                                is_active=True
+                            )
+                            db.add(mutual_fund)
+                            db.flush()  # Get the ID
                     
                     # Create holding record
+                    cost = holding_data['cost_basis']
+                    value = holding_data['current_value']
+                    gain_loss = value - cost
+                    gain_loss_pct = (gain_loss / cost * 100) if cost > 0 else 0.0
+                    holding_days = (datetime.utcnow().date() - holding_data['purchase_date']).days
+
                     mf_holding = MutualFundHolding(
                         portfolio_id=portfolio_id,
                         mutual_fund_id=mutual_fund.id,
                         units=holding_data['units'],
-                        cost_basis=holding_data['cost_basis'],
-                        current_value=holding_data['current_value'],
+                        cost_basis=cost,
+                        current_value=value,
                         purchase_date=holding_data['purchase_date'],
                         nav_at_purchase=holding_data.get('nav_at_purchase'),
                         plan_type=holding_data['plan_type'],
                         source=holding_data['source'],
+                        gain_loss=gain_loss,
+                        gain_loss_pct=gain_loss_pct,
+                        holding_days=holding_days,
+                        is_long_term=holding_days >= 365,
                         is_active=True
                     )
                     

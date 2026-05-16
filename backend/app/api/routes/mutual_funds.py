@@ -1,5 +1,6 @@
 """Mutual funds API routes"""
 import logging
+import aiohttp
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -29,9 +30,68 @@ from app.schemas.mutual_fund import (
 from app.services.mutual_fund_service import MutualFundService
 from app.services.mutual_fund_analytics_service import MutualFundAnalyticsService
 from app.services.indmoney_parser import INDmoneyCSVParser
+from app.services.mf_portfolio_service import (
+    get_xirr_performance,
+    get_allocation_detail,
+    get_tax_deep_dive,
+    get_risk_overview,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ==================== Live Search (mfapi.in) ====================
+
+@router.get("/search-live")
+async def search_funds_live(
+    q: str = Query("", description="Search term"),
+    current_user: User = Depends(get_current_user),
+):
+    """Search mutual funds via mfapi.in live search."""
+    if not q.strip():
+        return {"funds": [], "total": 0}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"https://api.mfapi.in/mf/search?q={q}",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                data = await resp.json(content_type=None)
+        funds = [{"scheme_code": f["schemeCode"], "name": f["schemeName"]} for f in data]
+        return {"funds": funds, "total": len(funds)}
+    except Exception as e:
+        logger.error(f"mfapi.in search error: {e}")
+        raise HTTPException(status_code=502, detail="Failed to reach mutual fund data service")
+
+
+# ==================== My Portfolio (auto-detect) ====================
+
+@router.get("/my-portfolio/summary")
+async def get_my_mf_portfolio_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the summary + portfolio_id for the user's most recent MF portfolio."""
+    portfolio = (
+        db.query(Portfolio)
+        .filter(Portfolio.user_id == current_user.id, Portfolio.type == "mutual_funds")
+        .order_by(Portfolio.id.desc())
+        .first()
+    )
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="No mutual fund portfolio found")
+
+    holdings = (
+        db.query(MutualFundHolding)
+        .filter(MutualFundHolding.portfolio_id == portfolio.id, MutualFundHolding.is_active == True)
+        .all()
+    )
+    if not holdings:
+        raise HTTPException(status_code=404, detail="Mutual fund portfolio has no holdings")
+
+    summary = MutualFundAnalyticsService.get_portfolio_mf_summary(db, portfolio.id)
+    return {**summary, "portfolio_id": portfolio.id, "portfolio_name": portfolio.name}
 
 
 # ==================== Fund Management ====================
@@ -278,6 +338,66 @@ async def delete_mf_holding(
 
 
 # ==================== Analytics ====================
+
+@router.get("/portfolio/{portfolio_id}/xirr-performance")
+async def get_portfolio_xirr_performance(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """XIRR, per-fund CAGR, best/worst performers."""
+    portfolio = db.query(Portfolio).filter(
+        (Portfolio.id == portfolio_id) & (Portfolio.user_id == current_user.id)
+    ).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return get_xirr_performance(db, portfolio_id)
+
+
+@router.get("/portfolio/{portfolio_id}/allocation-detail")
+async def get_portfolio_allocation_detail(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Allocation breakdown by category, AMC, asset type, plan type."""
+    portfolio = db.query(Portfolio).filter(
+        (Portfolio.id == portfolio_id) & (Portfolio.user_id == current_user.id)
+    ).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return get_allocation_detail(db, portfolio_id)
+
+
+@router.get("/portfolio/{portfolio_id}/tax-deep-dive")
+async def get_portfolio_tax_deep_dive(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """LTCG/STCG breakdown with tax estimates, harvest opportunities, upcoming eligibility."""
+    portfolio = db.query(Portfolio).filter(
+        (Portfolio.id == portfolio_id) & (Portfolio.user_id == current_user.id)
+    ).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return get_tax_deep_dive(db, portfolio_id)
+
+
+@router.get("/portfolio/{portfolio_id}/risk-overview")
+async def get_portfolio_risk_overview(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Weighted portfolio risk metrics: Sharpe, std dev, max drawdown, beta, concentration."""
+    portfolio = db.query(Portfolio).filter(
+        (Portfolio.id == portfolio_id) & (Portfolio.user_id == current_user.id)
+    ).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return get_risk_overview(db, portfolio_id)
+
 
 @router.get("/portfolio/{portfolio_id}/tax-analysis", response_model=TaxAnalysisResponse)
 async def get_tax_analysis(
