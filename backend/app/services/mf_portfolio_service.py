@@ -73,7 +73,7 @@ def _fund(db: Session, fund_id: int) -> Optional[MutualFund]:
 
 # ─── 1. XIRR / Performance ───────────────────────────────────────────────────
 
-def get_xirr_performance(db: Session, portfolio_id: int) -> dict:
+def get_xirr_performance(db: Session, portfolio_id: int, user_id: Optional[int] = None) -> dict:
     holdings = _active_holdings(db, portfolio_id)
     if not holdings:
         return {"error": "No holdings found"}
@@ -122,7 +122,42 @@ def get_xirr_performance(db: Session, portfolio_id: int) -> dict:
     # Add current value as terminal inflow at today
     cash_flows.append((today, total_current))
 
+    # Default: approximate XIRR from holdings (lump-sum assumption)
     portfolio_xirr = _xirr(cash_flows)
+    xirr_source = "holdings_approx"
+
+    # If user has MF transactions, use them for more accurate XIRR
+    if user_id is not None:
+        try:
+            from app.models.mf_transaction import MutualFundTransaction
+            txns = (
+                db.query(MutualFundTransaction)
+                .filter(
+                    MutualFundTransaction.user_id == user_id,
+                    MutualFundTransaction.transaction_type.in_(
+                        ["buy", "sell", "switch_in", "switch_out", "dividend_reinvest"]
+                    ),
+                )
+                .order_by(MutualFundTransaction.transaction_date)
+                .all()
+            )
+            if txns:
+                txn_cash_flows: list[tuple[date, float]] = []
+                for t in txns:
+                    if t.transaction_type in ("buy", "switch_in"):
+                        txn_cash_flows.append((t.transaction_date, -float(t.amount)))
+                    elif t.transaction_type in ("sell", "switch_out"):
+                        txn_cash_flows.append((t.transaction_date, float(t.amount)))
+                    # dividend_reinvest: units increase, no cash change
+                # Add terminal value
+                txn_cash_flows.append((today, total_current))
+                txn_xirr = _xirr(txn_cash_flows)
+                if txn_xirr is not None:
+                    portfolio_xirr = txn_xirr
+                    xirr_source = "transactions"
+        except Exception as e:
+            logger.warning(f"Failed to compute XIRR from transactions: {e}")
+
     total_gain = total_current - total_invested
     total_days = (today - min(h.purchase_date for h in holdings)).days
     portfolio_cagr = _cagr(total_invested, total_current, total_days)
@@ -138,6 +173,7 @@ def get_xirr_performance(db: Session, portfolio_id: int) -> dict:
 
     return {
         "portfolio_xirr": portfolio_xirr,
+        "xirr_source": xirr_source,
         "portfolio_cagr": portfolio_cagr,
         "absolute_return_pct": absolute_return_pct,
         "total_invested": round(total_invested, 2),

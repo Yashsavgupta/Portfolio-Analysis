@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import MutualFundSummary from '@/components/holdings/MutualFundSummary';
 import MutualFundList from '@/components/holdings/MutualFundList';
 import { apiCall, apiUrl } from '@/lib/api';
@@ -139,82 +138,59 @@ export default function MutualFundsPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-4xl font-bold">Mutual Funds</h1>
-              <p className="mt-2 text-slate-400">Analyze and manage your mutual fund portfolio.</p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={syncFundData}
-                disabled={loading || syncing}
-                className="rounded-lg bg-emerald-600 px-6 py-2.5 font-medium text-white hover:bg-emerald-700 transition disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {syncing ? 'Syncing...' : 'Refresh Fund Data'}
-              </button>
-              <Link
-                href="/import-mutual-funds"
-                className="rounded-lg bg-blue-600 px-6 py-2.5 font-medium hover:bg-blue-700 transition"
-              >
-                + Import from INDmoney
-              </Link>
-            </div>
-          </div>
-
-          <MFNavTabs />
-
-          {error && (
-            <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/30 p-4 text-red-300">
-              {error}
-            </div>
-          )}
-
-          {syncMessage && !error && (
-            <div className="mb-6 rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-4 text-emerald-200">
-              {syncMessage}
-            </div>
-          )}
-
-          {loading ? (
-            <div className="space-y-6">
-              <div className="h-32 rounded-lg bg-slate-800 animate-pulse" />
-              <div className="h-96 rounded-lg bg-slate-800 animate-pulse" />
-            </div>
-          ) : holdings.length === 0 ? (
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-10 text-center text-slate-300">
-              <h2 className="text-3xl font-semibold text-white">No Mutual Fund Holdings</h2>
-              <p className="mt-3 text-slate-400">
-                You have not added any mutual funds to this portfolio yet. Import from INDmoney or search for funds to get started.
-              </p>
-              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Link
-                  href="/import-mutual-funds"
-                  className="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 transition"
-                >
-                  Import Funds
-                </Link>
-                <Link
-                  href="/portfolio/mutual-funds/search"
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-6 py-3 font-medium text-slate-200 hover:bg-slate-700 transition"
-                >
-                  Search Funds
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <>
-              {summary ? <MutualFundSummary summary={summary} /> : null}
-              <div className="mt-10">
-                <MutualFundList holdings={holdings} />
-              </div>
-            </>
-          )}
-        </div>
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <MFNavTabs />
+        <button
+          type="button"
+          onClick={syncFundData}
+          disabled={loading || syncing}
+          className="shrink-0 rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-400 transition hover:border-slate-600 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {syncing ? 'Syncing…' : 'Refresh NAV'}
+        </button>
       </div>
-    </ProtectedRoute>
+
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/30 p-4 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
+      {syncMessage && !error && (
+        <div className="mb-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-4 text-sm text-emerald-200">
+          {syncMessage}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-4">
+          <div className="h-32 rounded-lg bg-slate-800/60 animate-pulse" />
+          <div className="h-96 rounded-lg bg-slate-800/60 animate-pulse" />
+        </div>
+      ) : holdings.length === 0 ? (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-10 text-center">
+          <p className="text-lg font-semibold text-white">No mutual fund holdings yet</p>
+          <p className="mt-2 text-sm text-slate-400">
+            Import your INDmoney export to get started.
+          </p>
+          <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/import?type=holdings"
+              className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-medium text-white hover:bg-sky-500 transition"
+            >
+              Import Funds
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <>
+          {summary ? <MutualFundSummary summary={summary} /> : null}
+          <div className="mt-8">
+            <MutualFundList holdings={holdings} />
+          </div>
+        </>
+      )}
+    </div>
   );
 }

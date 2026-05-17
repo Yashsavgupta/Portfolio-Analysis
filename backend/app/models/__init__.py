@@ -8,6 +8,8 @@ from app.models.mutual_fund_import import MutualFundImport
 from app.models.portfolio_snapshot import PortfolioSnapshot
 from app.models.holdings_import import HoldingsImport
 from app.models.mutual_fund import MutualFund, MutualFundHolding, MutualFundNAVHistory, SourceCredentials
+from app.models.stock_trade import StockTrade
+from app.models.mf_transaction import MutualFundTransaction
 
 __all__ = [
     'User',
@@ -23,4 +25,5 @@ __all__ = [
     'MutualFundNAVHistory',
     'SourceCredentials',
     'PortfolioSnapshot',
+    'MutualFundTransaction',
 ]
