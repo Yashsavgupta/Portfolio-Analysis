@@ -1,6 +1,6 @@
 # Portfolio Evaluator
 
-A personal wealth dashboard for Indian investors. Track your Zerodha stocks and mutual fund holdings in one place — with benchmark comparisons, risk metrics, tax estimates, and allocation analysis.
+A personal wealth dashboard for Indian investors. Import holdings from any major broker, track your stocks and mutual funds in one place, and get benchmark comparisons, risk metrics, tax estimates, and allocation analysis.
 
 Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/) 
 
@@ -9,13 +9,15 @@ Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/)
 ## Features
 
 **Stocks**
-- Upload Zerodha holdings export (Excel/CSV)
+- Upload holdings from Zerodha, Groww, Upstox, Angel One, or HDFC Securities — auto-detected from the CSV/Excel format
 - Portfolio dashboard with sector allocation, valuation signals, and promoter holding trends
 - Benchmark comparison against NIFTY 50
 - Risk analysis — concentration, volatility, drawdown
+- Tradebook import (Zerodha, Groww, Upstox, Angel One) for FIFO P&L and trade history
 
 **Mutual Funds**
-- Import INDmoney CSV exports
+- Import from INDmoney, Kuvera, Groww, or any generic MF holdings CSV
+- CAS (Consolidated Account Statement) support — CAMS and KFintech mailbacks accepted
 - Allocation breakdown by category, fund house, and asset type
 - Performance tracking with XIRR and CAGR per fund
 - Risk metrics — Sharpe ratio, standard deviation, max drawdown, beta vs NIFTY 50
@@ -101,11 +103,31 @@ NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000
 
 ## Importing Data
 
-### Stocks (Zerodha)
-Download your holdings from **Zerodha Console → Portfolio → Holdings → Download** and upload the Excel file at `/import`.
+Upload your files at `/import`. The app auto-detects the broker from the column headers — no manual selection needed.
 
-### Mutual Funds (INDmoney)
-Export your holdings from the INDmoney app and upload the CSV at `/import`.
+### Stock Holdings
+
+| Broker | How to export |
+|---|---|
+| **Zerodha** | Console → Portfolio → Holdings → Download (Excel) |
+| **Groww** | Stocks → Holdings → Download |
+| **Upstox** | Portfolio → Holdings → Download CSV |
+| **Angel One** | Portfolio → Holdings → Export |
+| **HDFC Securities** | My Portfolio → Export |
+
+### Mutual Fund Holdings
+
+| Source | How to export |
+|---|---|
+| **INDmoney** | Mutual Funds → Export Holdings CSV |
+| **Kuvera** | Portfolio → Download → Holdings CSV |
+| **Groww** | Mutual Funds → Holdings → Download |
+| **CAMS / KFintech CAS** | Request a mailback statement; upload the CSV |
+| **Generic CSV** | Any CSV with Fund Name, Units, NAV, Current Value columns |
+
+### Tradebooks (for P&L and trade history)
+
+Zerodha, Groww, Upstox, and Angel One tradebook CSVs are all supported. Upload at `/import-tradebook`.
 
 ---
 
