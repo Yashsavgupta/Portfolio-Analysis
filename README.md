@@ -97,7 +97,7 @@ Import all four to get a fully populated demo with stocks, mutual funds, P&L, ta
 | Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS, Recharts |
 | Backend | FastAPI, SQLAlchemy 2, Alembic, Pydantic 2 |
 | Database | SQLite (default) · PostgreSQL (production) |
-| Data sources | mfapi.in, yfinance, AMFI India |
+| Data sources | mfapi.in (NAV data), yfinance (stock prices & benchmarks) |
 
 ---
 
@@ -195,7 +195,7 @@ Zerodha, Groww, Upstox, and Angel One tradebook CSVs are all supported. Upload a
 
 1. Set `DATABASE_URL` to a PostgreSQL connection string
 2. Set a strong `SECRET_KEY`
-3. Update CORS origins in `backend/app/main.py` to your domain
+3. Set `CORS_ORIGINS` in your `.env` to your production domain (e.g. `https://yourdomain.com`)
 4. Run `alembic upgrade head` on first deploy
 5. Build the frontend: `npm run build && npm run start`
 6. Serve behind HTTPS (nginx, Caddy, or Cloudflare)
