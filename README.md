@@ -2,7 +2,7 @@
 
 A personal wealth dashboard for Indian investors. Track your Zerodha stocks and mutual fund holdings in one place — with benchmark comparisons, risk metrics, tax estimates, and allocation analysis.
 
-Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/) · BITS Pilani
+Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/) 
 
 ---
 
