@@ -2,7 +2,7 @@
 
 A personal wealth dashboard for Indian investors. Import holdings from any major broker, track your stocks and mutual funds in one place, and get benchmark comparisons, risk metrics, tax estimates, and allocation analysis — all running locally with your data staying private.
 
-Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/) · BITS Pilani
+Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/)
 
 ---
 
