@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import MFNavTabs from '@/components/mf/MFNavTabs';
 import { useMFPortfolioId, fetchMFAnalysis } from '@/lib/mf';
+import { apiUrl } from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
 
 function tone(v: number | null) {
@@ -26,8 +26,6 @@ interface FundRisk {
   std_dev_1y: number | null;
   max_drawdown: number | null;
   beta: number | null;
-  expense_ratio: number | null;
-  rating: number | null;
 }
 
 interface RiskData {
@@ -68,46 +66,50 @@ function MetricCard({
   );
 }
 
-function StarRating({ rating }: { rating: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <span key={s} className={s <= rating ? 'text-amber-400' : 'text-slate-700'}>★</span>
-      ))}
-    </div>
-  );
-}
 
 export default function RiskPage() {
-  const { portfolioId, loading: pidLoading, empty } = useMFPortfolioId();
+  const { portfolioId, loading: pidLoading, empty, error: pidError } = useMFPortfolioId();
   const [data, setData] = useState<RiskData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const syncAttempted = useRef(false);
+
+  const fetchRiskData = (pid: number) =>
+    fetchMFAnalysis<RiskData>(
+      `/api/mutual-funds/portfolio/${pid}/risk-overview`,
+      getAuthHeaders() as HeadersInit,
+    );
 
   useEffect(() => {
     if (!portfolioId) return;
     setLoading(true);
-    fetchMFAnalysis<RiskData>(
-      `/api/mutual-funds/portfolio/${portfolioId}/risk-overview`,
-      getAuthHeaders() as HeadersInit,
-    )
+    fetchRiskData(portfolioId)
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [portfolioId]);
 
+  // Auto-sync fund risk metrics when they are missing
+  useEffect(() => {
+    if (!portfolioId || !data || data.has_risk_data || syncAttempted.current) return;
+    syncAttempted.current = true;
+    setSyncing(true);
+    fetch(apiUrl('/api/mutual-funds/sync/fund-data'), {
+      method: 'POST',
+      headers: getAuthHeaders() as HeadersInit,
+    })
+      .then(() => fetchRiskData(portfolioId))
+      .then(setData)
+      .catch(() => { /* silently ignore sync failures */ })
+      .finally(() => setSyncing(false));
+  }, [data, portfolioId]);
+
   const isLoading = pidLoading || loading;
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-6">
-            <h1 className="text-4xl font-bold">Mutual Funds</h1>
-            <p className="mt-1 text-slate-400">Risk Overview</p>
-          </div>
-
-          <MFNavTabs />
+    <div>
+      <MFNavTabs />
 
           {isLoading && (
             <div className="space-y-4">
@@ -116,16 +118,35 @@ export default function RiskPage() {
           )}
 
           {!isLoading && empty && (
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-10 text-center">
-              <p className="text-slate-400">No mutual fund holdings yet.</p>
-              <Link href="/import-mutual-funds" className="mt-4 inline-block rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition">
-                Import Funds
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-800/80 text-3xl">
+                📂
+              </div>
+              <h3 className="text-lg font-semibold text-slate-200">No mutual fund holdings yet</h3>
+              <p className="mt-2 max-w-sm text-sm text-slate-500">Import your holdings to see Sharpe ratio, volatility, drawdown, and concentration risk.</p>
+              <Link
+                href="/import?type=holdings"
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-sky-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-sky-500"
+              >
+                Import Holdings
               </Link>
             </div>
           )}
 
-          {!isLoading && error && (
-            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>
+          {!isLoading && (error || pidError) && (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-800/80 text-3xl">
+                📂
+              </div>
+              <h3 className="text-lg font-semibold text-slate-200">No mutual fund holdings yet</h3>
+              <p className="mt-2 max-w-sm text-sm text-slate-500">Import your holdings to see Sharpe ratio, volatility, drawdown, and concentration risk.</p>
+              <Link
+                href="/import?type=holdings"
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-sky-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-sky-500"
+              >
+                Import Holdings
+              </Link>
+            </div>
           )}
 
           {!isLoading && data && (
@@ -216,13 +237,25 @@ export default function RiskPage() {
                     Max Drawdown = worst case loss from peak
                   </div>
                 </>
+              ) : syncing ? (
+                <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-6 text-center">
+                  <div className="flex items-center justify-center gap-3 text-sky-400">
+                    <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                    </svg>
+                    <span className="font-medium">Fetching fund risk metrics…</span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Pulling NAV history from MFAPI and computing Sharpe ratio, volatility, and drawdown. This takes a few seconds.
+                  </p>
+                </div>
               ) : (
                 <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-6 text-center text-slate-400">
                   <div className="text-2xl mb-2">📊</div>
-                  <p className="font-medium text-slate-300">Risk Metrics Not Available</p>
+                  <p className="font-medium text-slate-300">Risk Metrics Unavailable</p>
                   <p className="mt-1 text-sm">
-                    Quantitative risk data (Sharpe ratio, standard deviation, beta) is not yet stored for your imported funds.
-                    This data is populated when syncing fund details from the MFAPI. Use the "Refresh Fund Data" button on the portfolio page.
+                    Could not retrieve quantitative risk data from MFAPI for your funds. This may be due to a network issue or unrecognised fund names.
                   </p>
                 </div>
               )}
@@ -239,9 +272,7 @@ export default function RiskPage() {
                         <th className="pb-3 pr-4 text-right">Sharpe</th>
                         <th className="pb-3 pr-4 text-right">Std Dev</th>
                         <th className="pb-3 pr-4 text-right">Max DD</th>
-                        <th className="pb-3 pr-4 text-right">Beta</th>
-                        <th className="pb-3 pr-4 text-right">Exp. Ratio</th>
-                        <th className="pb-3 text-right">Rating</th>
+                        <th className="pb-3 text-right">Beta</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
@@ -268,55 +299,26 @@ export default function RiskPage() {
                           <td className="py-3 pr-4 text-right text-rose-400">
                             {f.max_drawdown != null ? `${f.max_drawdown.toFixed(1)}%` : '—'}
                           </td>
-                          <td className="py-3 pr-4 text-right text-slate-300">
+                          <td className="py-3 text-right text-slate-300">
                             {f.beta != null ? f.beta.toFixed(2) : '—'}
-                          </td>
-                          <td className="py-3 pr-4 text-right text-slate-400">
-                            {f.expense_ratio != null ? `${f.expense_ratio.toFixed(2)}%` : '—'}
-                          </td>
-                          <td className="py-3 text-right">
-                            {f.rating != null ? <StarRating rating={f.rating} /> : <span className="text-slate-600">—</span>}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                {/* Data-source footnote */}
+                <p className="mt-3 text-xs text-slate-600">
+                  Expense ratio and star ratings are not shown — they are not available from the free mfapi.in data source. For TER and ratings, visit{' '}
+                  <a href="https://www.amfiindia.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-400">amfiindia.com</a>{' '}
+                  or{' '}
+                  <a href="https://www.valueresearchonline.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-400">valueresearchonline.com</a>.
+                </p>
               </div>
 
-              {/* Expense ratio insight */}
-              {data.fund_risk_metrics.some((f) => f.expense_ratio != null) && (
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-                  <h3 className="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-400">Expense Ratio Analysis</h3>
-                  <div className="space-y-2">
-                    {data.fund_risk_metrics
-                      .filter((f) => f.expense_ratio != null)
-                      .sort((a, b) => (b.expense_ratio ?? 0) - (a.expense_ratio ?? 0))
-                      .map((f, i) => (
-                        <div key={i} className="flex items-center gap-3">
-                          <div className="w-48 truncate text-sm text-slate-300">{f.fund_name}</div>
-                          <div className="flex-1 h-2 overflow-hidden rounded-full bg-slate-800">
-                            <div
-                              className={`h-full rounded-full ${(f.expense_ratio ?? 0) > 1.5 ? 'bg-rose-500' : (f.expense_ratio ?? 0) > 0.5 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                              style={{ width: `${Math.min((f.expense_ratio ?? 0) / 2.5 * 100, 100)}%` }}
-                            />
-                          </div>
-                          <div className={`w-12 text-right text-sm font-medium ${
-                            (f.expense_ratio ?? 0) > 1.5 ? 'text-rose-400' :
-                            (f.expense_ratio ?? 0) > 0.5 ? 'text-amber-400' : 'text-emerald-400'
-                          }`}>{f.expense_ratio?.toFixed(2)}%</div>
-                        </div>
-                      ))}
-                  </div>
-                  <p className="mt-3 text-xs text-slate-500">
-                    Direct plans: typically &lt;0.5% · Active funds: 0.5–2% · &gt;1.5% is high for most categories.
-                  </p>
-                </div>
-              )}
+
             </div>
           )}
-        </div>
-      </div>
-    </ProtectedRoute>
+    </div>
   );
 }

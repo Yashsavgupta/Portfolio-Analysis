@@ -27,23 +27,26 @@ function buildHeaders(request: NextRequest) {
 
 async function proxyRequest(request: NextRequest, pathSegments: string[] | string | undefined) {
   const url = buildBackendUrl(pathSegments, request.nextUrl.search);
-  const body =
-    request.method !== 'GET' && request.method !== 'HEAD'
-      ? await request.arrayBuffer()
-      : undefined;
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
 
-  const response = await fetch(url, {
-    method: request.method,
-    headers: buildHeaders(request),
-    body,
-  });
+  try {
+    const body = hasBody ? await request.arrayBuffer() : undefined;
+    const response = await fetch(url, {
+      method: request.method,
+      headers: buildHeaders(request),
+      body,
+    });
 
-  const responseBody = await response.arrayBuffer();
-  const res = new NextResponse(responseBody, { status: response.status });
-  response.headers.forEach((value, key) => {
-    res.headers.set(key, value);
-  });
-  return res;
+    const responseBody = await response.arrayBuffer();
+    const res = new NextResponse(responseBody, { status: response.status });
+    response.headers.forEach((value, key) => {
+      if (key.toLowerCase() !== 'content-encoding') res.headers.set(key, value);
+    });
+    return res;
+  } catch (err) {
+    console.error('[import proxy] error:', err);
+    return NextResponse.json({ detail: `Proxy error: ${String(err)}` }, { status: 502 });
+  }
 }
 
 export async function GET(request: NextRequest, { params }: { params: { path?: string | string[] } }) {
