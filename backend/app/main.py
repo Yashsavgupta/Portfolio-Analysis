@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 # Import models to register all relationships before API router is loaded
-from app.models import User, Portfolio, Holding, Instrument, ZerodhaAccount, MutualFundImport, PortfolioSnapshot
+from app.models import User, Portfolio, Holding, Instrument, ZerodhaAccount, MutualFundImport, PortfolioSnapshot, StockTrade
+from app.db.init_db import init_db
 from app.api.api import api_router
 
 logger.info(f"Database URL: {settings.DATABASE_URL}")
@@ -28,6 +29,9 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.API_PREFIX)
+
+# Create any missing tables (safe to call repeatedly; skips existing tables)
+init_db()
 
 logger.info("Portfolio Evaluator API started")
 

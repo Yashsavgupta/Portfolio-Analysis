@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.holding import Holding
 from app.models.portfolio import Portfolio
+from app.models.stock_trade import StockTrade
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class PortfolioDashboardContext:
 def build_portfolio_dashboard(user_id: int, db: Session, portfolio_id: Optional[int] = None, indices: list[str] = None) -> Dict[str, Any]:
     if indices is None:
         indices = ["^NSEI"]  # Default to Nifty 50
-    
+
     context = _load_context(user_id, db, portfolio_id)
     history = _build_performance_history(context.holdings, indices)
     summary = _build_summary(context, history)
@@ -38,7 +39,30 @@ def build_portfolio_dashboard(user_id: int, db: Session, portfolio_id: Optional[
     sectors = _build_sector_allocation(context.holdings)
     holdings = _build_holdings_table(context.holdings, context.total_value)
     fundamentals = _build_fundamental_snapshot(holdings)
-    commentary = _build_market_commentary(summary, risk, sectors, holdings)
+
+    # ── Compute XIRR from trade history — identical logic to /trade-analysis ──
+    trades = db.query(StockTrade).filter(StockTrade.user_id == user_id).all()
+    has_trades = bool(trades)
+    if has_trades:
+        try:
+            from app.services.tradebook_service import calculate_trade_analysis as _calc_trades
+            current_prices: dict[str, float] = {}
+            for h in context.holdings:
+                sym = h.instrument.symbol if h.instrument else None
+                # Same priority as _current_price(): live instrument price first
+                price = (
+                    (h.instrument.current_price if h.instrument else None)
+                    or h.current_price
+                    or h.previous_closing_price
+                )
+                if sym and price:
+                    current_prices[sym.upper()] = price
+            trade_result = _calc_trades(trades, current_prices)
+            summary["xirr"] = trade_result.get("portfolio_xirr")
+        except Exception:
+            pass  # leave xirr as None if computation fails
+
+    commentary = _build_market_commentary(summary, risk, sectors, holdings, has_trades)
 
     return {
         "portfolio": {
@@ -54,7 +78,7 @@ def build_portfolio_dashboard(user_id: int, db: Session, portfolio_id: Optional[
         "holdings": holdings,
         "fundamentals": fundamentals,
         "market_commentary": commentary,
-        "data_gaps": _missing_info_items(),
+        "data_gaps": _missing_info_items(has_trades),
     }
 
 
@@ -519,6 +543,7 @@ def _build_market_commentary(
     risk: Dict[str, Any],
     sectors: list[Dict[str, Any]],
     holdings: list[Dict[str, Any]],
+    has_trades: bool = False,
 ) -> list[str]:
     comments = []
     if summary.get("alpha_vs_benchmark") is not None:
@@ -537,7 +562,12 @@ def _build_market_commentary(
     if sell_names:
         comments.append(f"Sell signals are currently triggered for {', '.join(sell_names)} based on upside, RSI, and valuation inputs.")
 
-    comments.append("XIRR shown in the dashboard needs real transaction dates and cash flows before it can be treated as an investable metric.")
+    if not has_trades:
+        comments.append("Upload your tradebook to unlock XIRR, realized P&L, and per-trade performance analytics.")
+    elif summary.get("xirr") is not None:
+        xirr_pct = round(summary["xirr"] * 100, 2)
+        comments.append(f"Portfolio XIRR computed from trade history is {xirr_pct:+.2f}% per annum.")
+
     return comments
 
 
@@ -586,13 +616,17 @@ def _build_fundamental_snapshot(holdings: list[Dict[str, Any]]) -> Dict[str, Any
     }
 
 
-def _missing_info_items() -> list[str]:
-    return [
-        "Transaction dates and cash-flow history are required for true XIRR and accurate time-weighted return.",
+def _missing_info_items(has_trades: bool = False) -> list[str]:
+    items = []
+    if not has_trades:
+        items.append("Upload your tradebook to unlock XIRR, realized P&L, and per-trade performance analytics.")
+    items += [
         "Benchmark comparison uses the first selected index for alpha and beta; add your preferred benchmark selection if you want a different primary comparison basis.",
         "Promoter holding is currently sourced as an insider/promoter proxy where available; a dedicated Indian shareholding-pattern feed would improve accuracy.",
-        "True realized return, tax lots, and thesis tracking need buy/sell transaction history rather than a holdings snapshot.",
     ]
+    if not has_trades:
+        items.append("True realized return, tax lots, and thesis tracking need buy/sell transaction history rather than a holdings snapshot.")
+    return items
 
 
 def _std_dev(values: list[float]) -> float:

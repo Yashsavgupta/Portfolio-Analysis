@@ -1,67 +1,77 @@
 # Portfolio Evaluator
 
-Portfolio Evaluator is a full-stack portfolio analysis app with a Next.js frontend and a FastAPI backend. It supports user authentication, Zerodha holdings import from Excel, imported-portfolio analytics, market-data refresh, and Zerodha account/API credential flows.
+A personal wealth dashboard for Indian investors. Track your Zerodha stocks and mutual fund holdings in one place — with benchmark comparisons, risk metrics, tax estimates, and allocation analysis.
 
-## Current State
+Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/) · BITS Pilani
 
-- Local development flow is working.
-- Backend migrations and health endpoint are verified.
-- Frontend lint and production build are verified.
-- The holdings upload flow from `.xlsx` to analytics is working.
-- Zerodha OAuth and API-key flows are wired, but they depend on valid Zerodha credentials and external service availability.
+---
 
-## Stack
+## Features
 
-- Frontend: Next.js `14.2.35`, React `18`, TypeScript, Tailwind CSS, Recharts
-- Backend: FastAPI, SQLAlchemy `2`, Alembic, Pydantic `2`
-- Data: SQLite by default, PostgreSQL supported through `DATABASE_URL`
-- Integrations: Zerodha, `yfinance`, `openpyxl`
+**Stocks**
+- Upload Zerodha holdings export (Excel/CSV)
+- Portfolio dashboard with sector allocation, valuation signals, and promoter holding trends
+- Benchmark comparison against NIFTY 50
+- Risk analysis — concentration, volatility, drawdown
 
-## Repository Layout
+**Mutual Funds**
+- Import INDmoney CSV exports
+- Allocation breakdown by category, fund house, and asset type
+- Performance tracking with XIRR and CAGR per fund
+- Risk metrics — Sharpe ratio, standard deviation, max drawdown, beta vs NIFTY 50
+- LTCG/STCG tax estimates and harvest opportunities
 
-```text
-.
-├── backend/                  FastAPI app, models, services, migrations
-├── frontend/                 Next.js app, API proxy routes, UI
-├── sample_holdings.xlsx      Sample Zerodha holdings export
-├── README.md                 Project overview
-├── SETUP_GUIDE.md            Full local setup and run guide
-├── QUICK_REFERENCE.md        Commands, URLs, and common workflows
-├── VERIFICATION_CHECKLIST.md Verification steps
-└── DOCUMENTATION_INDEX.md    Documentation map
-```
-
-## What the App Does
-
-### User-facing flows
-
-- Sign up and log in
-- Upload a Zerodha holdings export at `/import-mutual-funds`
-- Review imported analytics at `/analytics/[portfolio_id]`
-- Open the main dashboard at `/portfolio/total`
-- Filter the dashboard into stock and mutual-fund views
-- Save Zerodha API keys and start the connect flow
-
-### Backend capabilities
-
+**General**
 - JWT-based authentication
-- Imported portfolio creation from Excel
-- Portfolio dashboard aggregation
-- Market-data refresh for imported instruments
-- Zerodha status, OAuth completion, holdings, orders, and positions endpoints
+- Private by default — your data never leaves your own instance
+- SQLite for local use, PostgreSQL for production
 
-## Quick Start
+---
+
+## Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS, Recharts |
+| Backend | FastAPI, SQLAlchemy 2, Alembic, Pydantic 2 |
+| Database | SQLite (default) · PostgreSQL (production) |
+| Data sources | mfapi.in, yfinance, AMFI India |
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Python 3.9+
+- Node.js 18+
 
 ### 1. Backend
 
 ```bash
 cd backend
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env
+cp .env.example .env             # then edit .env
 alembic upgrade head
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+**`backend/.env`**
+
+```env
+DATABASE_URL=sqlite:///./portfolio_evaluator.db
+SECRET_KEY=change-me-use-a-long-random-string
+API_PREFIX=/api
+ZERODHA_API_KEY=
+ZERODHA_API_SECRET=
+```
+
+Generate a strong secret key:
+
+```bash
+python3 -c "import secrets; print(secrets.token_hex(32))"
 ```
 
 ### 2. Frontend
@@ -69,132 +79,69 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local
+cp .env.example .env.local       # default values work for local dev
 npm run dev
 ```
 
-### 3. Open the app
-
-- Frontend: `http://127.0.0.1:3000`
-- Backend API: `http://127.0.0.1:8000`
-- API docs: `http://127.0.0.1:8000/docs`
-
-## Environment Files
-
-### Backend: `backend/.env`
-
-```env
-DATABASE_URL=sqlite:///./portfolio_evaluator.db
-SECRET_KEY=change-me
-API_PREFIX=/api
-ZERODHA_API_KEY=
-ZERODHA_API_SECRET=
-```
-
-### Frontend: `frontend/.env.local`
+**`frontend/.env.local`**
 
 ```env
 NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8000
 ```
 
-Notes:
+### 3. Open the app
 
-- SQLite is the default local database.
-- To use PostgreSQL, replace `DATABASE_URL` with a Postgres connection string.
-- The frontend uses same-origin `/api/*` route handlers and proxies to the backend URL above.
+| Service | URL |
+|---|---|
+| App | http://localhost:3000 |
+| API | http://localhost:8000 |
+| API docs | http://localhost:8000/docs |
 
-## Main Routes
+---
 
-### Frontend
+## Importing Data
 
-- `/`
-- `/signup`
-- `/login`
-- `/portfolio`
-- `/portfolio/total`
-- `/portfolio/stocks`
-- `/portfolio/mutual-funds`
-- `/import-mutual-funds`
-- `/analytics/[portfolio_id]`
-- `/zerodha-api-keys`
-- `/zerodha-connect`
+### Stocks (Zerodha)
+Download your holdings from **Zerodha Console → Portfolio → Holdings → Download** and upload the Excel file at `/import`.
 
-Notes:
+### Mutual Funds (INDmoney)
+Export your holdings from the INDmoney app and upload the CSV at `/import`.
 
-- `/portfolio` redirects into the main dashboard flow.
-- `/portfolio/comparison` and `/portfolio/pseudo-fund` currently redirect to `/portfolio/total`.
+---
 
-### Backend
+## Production Deployment
 
-Authentication:
+1. Set `DATABASE_URL` to a PostgreSQL connection string
+2. Set a strong `SECRET_KEY`
+3. Update CORS origins in `backend/app/main.py` to your domain
+4. Run `alembic upgrade head` on first deploy
+5. Build the frontend: `npm run build && npm run start`
+6. Serve behind HTTPS (nginx, Caddy, or Cloudflare)
 
-- `POST /api/auth/signup`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
+---
 
-Portfolio and market data:
+## Project Structure
 
-- `GET /api/portfolios/`
-- `GET /api/portfolios/dashboard`
-- `POST /api/market-data/refresh/{portfolio_id}`
-- `GET /api/market-data/symbol/{symbol}`
-
-Imported holdings and analytics:
-
-- `POST /api/import/upload-holdings`
-- `GET /api/import/analytics/overview/{portfolio_id}`
-- `GET /api/import/analytics/sectors/{portfolio_id}`
-- `GET /api/import/analytics/valuation/{portfolio_id}`
-- `GET /api/import/analytics/growth/{portfolio_id}`
-- `GET /api/import/analytics/promoter/{portfolio_id}`
-- `GET /api/import/analytics/risk/{portfolio_id}`
-- `GET /api/import/analytics/tax/{portfolio_id}`
-
-Zerodha:
-
-- `GET /api/zerodha/status`
-- `POST /api/zerodha/connect`
-- `POST /api/zerodha/connect/complete`
-- `GET /api/zerodha/holdings`
-- `GET /api/zerodha/orders`
-- `GET /api/zerodha/api-keys`
-- `POST /api/zerodha/api-keys`
-
-## Verification Commands
-
-From the repository root:
-
-```bash
-./.venv/bin/pytest
+```
+.
+├── backend/
+│   ├── app/
+│   │   ├── api/          # Route handlers
+│   │   ├── models/       # SQLAlchemy models
+│   │   ├── schemas/      # Pydantic schemas
+│   │   ├── services/     # Business logic
+│   │   └── core/         # Config, security, JWT
+│   ├── alembic/          # Database migrations
+│   └── requirements.txt
+├── frontend/
+│   ├── app/              # Next.js app directory
+│   ├── components/       # Shared UI components
+│   └── lib/              # API helpers, auth utils
+└── README.md
 ```
 
-From `backend/`:
+---
 
-```bash
-./.venv/bin/alembic upgrade head
-./.venv/bin/python -c "from app.main import app; print(app.title)"
-curl http://127.0.0.1:8000/health
-```
+## License
 
-From `frontend/`:
-
-```bash
-npm run lint
-npm run build
-```
-
-## Production Notes
-
-- The frontend currently stores the auth token in browser-managed storage and mirrors it into a cookie for the Next proxy routes. A move to `HttpOnly` cookie auth is still a worthwhile follow-up.
-- Framework-level `npm audit` findings on Next.js now require a major-version upgrade beyond the current `14.x` line.
-- The most important runtime flows are verified, but automated test coverage is still light.
-
-## Documentation
-
-- [SETUP_GUIDE.md](SETUP_GUIDE.md): full setup, environment, and run instructions
-- [QUICK_REFERENCE.md](QUICK_REFERENCE.md): commands, URLs, and maintenance tasks
-- [VERIFICATION_CHECKLIST.md](VERIFICATION_CHECKLIST.md): verification steps before shipping
-- [backend/README.md](backend/README.md): backend-focused runbook
-- [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md): architecture and feature summary
-- [PROJECT_COMPLETION_REPORT.md](PROJECT_COMPLETION_REPORT.md): current status and remaining follow-ups
-- [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md): documentation map
+MIT

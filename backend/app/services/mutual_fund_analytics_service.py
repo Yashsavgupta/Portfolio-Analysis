@@ -44,20 +44,20 @@ class MutualFundAnalyticsService:
                 'by_house': {}
             }
         
-        total_invested = sum(h.cost_basis for h in holdings)
-        total_value = sum(h.current_value for h in holdings)
+        total_invested = sum(float(h.cost_basis or 0) for h in holdings)
+        total_value = sum(float(h.current_value or 0) for h in holdings)
         total_gain_loss = total_value - total_invested
         total_gain_loss_pct = (total_gain_loss / total_invested * 100) if total_invested > 0 else 0
-        
+
         # Breakdown by category
         by_category = {}
         by_house = {}
-        
+
         for holding in holdings:
             fund = holding.mutual_fund
-            
+
             # By category
-            category = fund.category
+            category = (fund.category if fund else None) or 'Unknown'
             if category not in by_category:
                 by_category[category] = {
                     'value': 0,
@@ -65,13 +65,13 @@ class MutualFundAnalyticsService:
                     'num_funds': 0,
                     'holdings': []
                 }
-            by_category[category]['value'] += holding.current_value
-            by_category[category]['invested'] += holding.cost_basis
+            by_category[category]['value'] += float(holding.current_value or 0)
+            by_category[category]['invested'] += float(holding.cost_basis or 0)
             by_category[category]['num_funds'] += 1
             by_category[category]['holdings'].append(holding.id)
-            
+
             # By fund house
-            house = fund.fund_house
+            house = (fund.fund_house if fund else None) or 'Unknown'
             if house not in by_house:
                 by_house[house] = {
                     'value': 0,
@@ -79,8 +79,8 @@ class MutualFundAnalyticsService:
                     'num_funds': 0,
                     'holdings': []
                 }
-            by_house[house]['value'] += holding.current_value
-            by_house[house]['invested'] += holding.cost_basis
+            by_house[house]['value'] += float(holding.current_value or 0)
+            by_house[house]['invested'] += float(holding.cost_basis or 0)
             by_house[house]['num_funds'] += 1
             by_house[house]['holdings'].append(holding.id)
         

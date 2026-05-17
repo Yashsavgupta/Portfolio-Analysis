@@ -11,6 +11,7 @@ from app.core.security import get_current_user
 from app.models.user import User
 from app.models.portfolio import Portfolio
 from app.models.mutual_fund import MutualFund, MutualFundHolding, SourceCredentials
+from app.models.mf_transaction import MutualFundTransaction
 from app.schemas.mutual_fund import (
     MutualFundResponse,
     MutualFundDetailedResponse,
@@ -30,6 +31,7 @@ from app.schemas.mutual_fund import (
 from app.services.mutual_fund_service import MutualFundService
 from app.services.mutual_fund_analytics_service import MutualFundAnalyticsService
 from app.services.indmoney_parser import INDmoneyCSVParser
+from app.services.cas_parser import parse_cas_csv
 from app.services.mf_portfolio_service import (
     get_xirr_performance,
     get_allocation_detail,
@@ -39,30 +41,6 @@ from app.services.mf_portfolio_service import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-# ==================== Live Search (mfapi.in) ====================
-
-@router.get("/search-live")
-async def search_funds_live(
-    q: str = Query("", description="Search term"),
-    current_user: User = Depends(get_current_user),
-):
-    """Search mutual funds via mfapi.in live search."""
-    if not q.strip():
-        return {"funds": [], "total": 0}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://api.mfapi.in/mf/search?q={q}",
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                data = await resp.json(content_type=None)
-        funds = [{"scheme_code": f["schemeCode"], "name": f["schemeName"]} for f in data]
-        return {"funds": funds, "total": len(funds)}
-    except Exception as e:
-        logger.error(f"mfapi.in search error: {e}")
-        raise HTTPException(status_code=502, detail="Failed to reach mutual fund data service")
 
 
 # ==================== My Portfolio (auto-detect) ====================
@@ -351,7 +329,10 @@ async def get_portfolio_xirr_performance(
     ).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
-    return get_xirr_performance(db, portfolio_id)
+    result = get_xirr_performance(db, portfolio_id, user_id=current_user.id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
 
 
 @router.get("/portfolio/{portfolio_id}/allocation-detail")
@@ -366,7 +347,10 @@ async def get_portfolio_allocation_detail(
     ).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
-    return get_allocation_detail(db, portfolio_id)
+    result = get_allocation_detail(db, portfolio_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
 
 
 @router.get("/portfolio/{portfolio_id}/tax-deep-dive")
@@ -381,7 +365,10 @@ async def get_portfolio_tax_deep_dive(
     ).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
-    return get_tax_deep_dive(db, portfolio_id)
+    result = get_tax_deep_dive(db, portfolio_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
 
 
 @router.get("/portfolio/{portfolio_id}/risk-overview")
@@ -396,7 +383,10 @@ async def get_portfolio_risk_overview(
     ).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
-    return get_risk_overview(db, portfolio_id)
+    result = get_risk_overview(db, portfolio_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
 
 
 @router.get("/portfolio/{portfolio_id}/tax-analysis", response_model=TaxAnalysisResponse)
@@ -549,3 +539,114 @@ async def sync_fund_data(
     except Exception as e:
         logger.error(f"Error syncing fund data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+
+# ==================== CAS Import ====================
+
+def _read_uploaded_file(file_bytes: bytes) -> str:
+    """Decode uploaded bytes, trying UTF-8 first then latin-1."""
+    try:
+        return file_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return file_bytes.decode("latin-1")
+
+
+@router.post("/import/cas/preview")
+async def cas_preview(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Parse CAS CSV and return preview without storing anything."""
+    raw = await file.read()
+    content = _read_uploaded_file(raw)
+    try:
+        result = parse_cas_csv(content)
+    except Exception as e:
+        logger.error(f"CAS preview error: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(e)}")
+
+    if result["total_rows"] == 0:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No valid transactions found in file. "
+                "Make sure the file is in CAMS, KFintech, Kuvera, Groww, or generic CSV format."
+            ),
+        )
+    return result
+
+
+@router.post("/import/cas/confirm")
+async def cas_confirm(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Parse CAS CSV, deduplicate, and store transactions for the current user."""
+    raw = await file.read()
+    content = _read_uploaded_file(raw)
+    try:
+        result = parse_cas_csv(content)
+    except Exception as e:
+        logger.error(f"CAS confirm error: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(e)}")
+
+    if result["total_rows"] == 0:
+        raise HTTPException(status_code=422, detail="No valid transactions found in file.")
+
+    source = result["source"]
+    new_added = 0
+    duplicates_skipped = 0
+
+    for txn in result["transactions"]:
+        # Deduplication key: (user_id, fund_name, transaction_date, amount, transaction_type)
+        existing = (
+            db.query(MutualFundTransaction)
+            .filter(
+                MutualFundTransaction.user_id == current_user.id,
+                MutualFundTransaction.fund_name == txn["fund_name"],
+                MutualFundTransaction.transaction_date == txn["transaction_date"],
+                MutualFundTransaction.amount == txn["amount"],
+                MutualFundTransaction.transaction_type == txn["transaction_type"],
+            )
+            .first()
+        )
+        if existing:
+            duplicates_skipped += 1
+            continue
+
+        db_txn = MutualFundTransaction(
+            user_id=current_user.id,
+            folio=txn.get("folio"),
+            fund_name=txn["fund_name"],
+            isin=txn.get("isin"),
+            transaction_date=txn["transaction_date"],
+            transaction_type=txn["transaction_type"],
+            amount=txn["amount"],
+            units=txn["units"],
+            nav=txn.get("nav"),
+            source=source,
+            raw_type=txn.get("raw_type"),
+        )
+        db.add(db_txn)
+        new_added += 1
+
+    db.commit()
+
+    total_stored = (
+        db.query(MutualFundTransaction)
+        .filter(MutualFundTransaction.user_id == current_user.id)
+        .count()
+    )
+
+    return {
+        "new_added": new_added,
+        "duplicates_skipped": duplicates_skipped,
+        "total_stored": total_stored,
+        "source": source,
+        "date_from": result["date_from"],
+        "date_to": result["date_to"],
+        "funds_count": len(result["funds"]),
+        "funds": result["funds"],
+    }

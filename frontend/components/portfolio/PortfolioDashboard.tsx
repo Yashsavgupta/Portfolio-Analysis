@@ -412,7 +412,7 @@ export default function PortfolioDashboard() {
         action={
           isMissingPortfolio ? (
             <Link
-              href="/import-mutual-funds"
+              href="/import?type=holdings"
               className="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20"
             >
               Upload Holdings
@@ -438,33 +438,7 @@ export default function PortfolioDashboard() {
 
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden rounded-2xl border-slate-800 bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.16),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.16),_transparent_35%),rgba(15,23,42,0.92)] p-5 sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="text-xs uppercase tracking-[0.32em] text-teal-300">Portfolio View</div>
-            <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">{dashboard.portfolio.name}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Decision-focused portfolio cockpit with risk, valuation, growth forecast, promoter holding context, and benchmark-aware commentary.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={refreshMarketData}
-              disabled={refreshing}
-              className="rounded-full border border-sky-500/40 bg-sky-500/10 px-4 py-2 text-sm font-medium text-sky-200 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {refreshing ? 'Refreshing Market Data...' : 'Refresh Market Data'}
-            </button>
-            <Link
-              href="/import-mutual-funds"
-              className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20"
-            >
-              Import Another File
-            </Link>
-          </div>
-        </div>
-        {error ? <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">{error}</div> : null}
-      </Card>
+      {error ? <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">{error}</div> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
         <SummaryTile label="Total Value" value={formatCurrency(summary.total_value)} detail={`${holdings.length} holdings in view`} />

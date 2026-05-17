@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import MFNavTabs from '@/components/mf/MFNavTabs';
 import { useMFPortfolioId, fetchMFAnalysis } from '@/lib/mf';
 import { getAuthHeaders } from '@/lib/auth';
@@ -106,7 +105,7 @@ function PerfRow({ f }: { f: FundPerf }) {
 }
 
 export default function PerformancePage() {
-  const { portfolioId, loading: pidLoading, empty } = useMFPortfolioId();
+  const { portfolioId, loading: pidLoading, empty, error: pidError } = useMFPortfolioId();
   const [data, setData] = useState<PerfData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,15 +125,8 @@ export default function PerformancePage() {
   const isLoading = pidLoading || loading;
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-100">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-6">
-            <h1 className="text-4xl font-bold">Mutual Funds</h1>
-            <p className="mt-1 text-slate-400">Performance Analysis</p>
-          </div>
-
-          <MFNavTabs />
+    <div>
+      <MFNavTabs />
 
           {isLoading && (
             <div className="space-y-4">
@@ -145,14 +137,14 @@ export default function PerformancePage() {
           {!isLoading && empty && (
             <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-10 text-center">
               <p className="text-slate-400">No mutual fund holdings yet.</p>
-              <Link href="/import-mutual-funds" className="mt-4 inline-block rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition">
+              <Link href="/import?type=holdings" className="mt-4 inline-block rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition">
                 Import Funds
               </Link>
             </div>
           )}
 
-          {!isLoading && error && (
-            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error}</div>
+          {!isLoading && (error || pidError) && (
+            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">{error || pidError}</div>
           )}
 
           {!isLoading && data && (
@@ -264,8 +256,6 @@ export default function PerformancePage() {
               </div>
             </div>
           )}
-        </div>
-      </div>
-    </ProtectedRoute>
+    </div>
   );
 }

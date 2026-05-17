@@ -121,7 +121,7 @@ function AssetCard({
       ) : (
         <div className="mt-5 rounded-xl border border-dashed border-slate-700 px-4 py-5 text-center text-sm text-slate-500">
           No {title.toLowerCase()} imported yet.{' '}
-          <Link href="/import-mutual-funds" className="text-sky-400 hover:text-sky-300">
+          <Link href="/import?type=holdings" className="text-sky-400 hover:text-sky-300">
             Import holdings
           </Link>
         </div>
@@ -162,7 +162,7 @@ export default function TotalPortfolioPage() {
         title="Portfolio Error"
         description={error || 'Could not load summary'}
         action={
-          <Link href="/import-mutual-funds" className="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20">
+          <Link href="/import?type=holdings" className="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20">
             Import Holdings
           </Link>
         }
@@ -176,7 +176,7 @@ export default function TotalPortfolioPage() {
         title="Import Holdings To Start"
         description="Upload your Zerodha stock holdings or INDmoney mutual fund export to see your combined portfolio view."
         action={
-          <Link href="/import-mutual-funds" className="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20">
+          <Link href="/import?type=holdings" className="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/20">
             Upload Holdings
           </Link>
         }
