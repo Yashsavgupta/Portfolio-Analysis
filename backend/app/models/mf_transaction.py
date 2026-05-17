@@ -12,7 +12,7 @@ class MutualFundTransaction(Base):
     __tablename__ = 'mf_transactions'
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
 
     folio = Column(String(100), nullable=True)           # e.g. "12345678/00"
     fund_name = Column(String(500), nullable=False)      # free text from import

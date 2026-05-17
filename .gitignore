@@ -21,3 +21,6 @@ tsconfig.tsbuildinfo
 *.db
 *.sqlite
 *.sqlite3
+screenshots/node_modules/
+screenshots/package*.json
+screenshots/capture.js

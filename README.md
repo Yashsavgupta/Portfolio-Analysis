@@ -1,8 +1,53 @@
 # Portfolio Evaluator
 
-A personal wealth dashboard for Indian investors. Import holdings from any major broker, track your stocks and mutual funds in one place, and get benchmark comparisons, risk metrics, tax estimates, and allocation analysis.
+A personal wealth dashboard for Indian investors. Import holdings from any major broker, track your stocks and mutual funds in one place, and get benchmark comparisons, risk metrics, tax estimates, and allocation analysis — all running locally with your data staying private.
 
-Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/) 
+Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/) · BITS Pilani
+
+---
+
+## Screenshots
+
+### Dashboard
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/04_total_portfolio.jpg" alt="Total Portfolio" width="600"/><br/><sub><b>Total Portfolio</b> — combined stocks + MF view with asset allocation</sub></td>
+  </tr>
+</table>
+
+### Stocks
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/05_stocks_overview.jpg" alt="Stocks Overview" width="480"/><br/><sub><b>Overview</b> — XIRR, alpha vs Nifty 50, today's P&L</sub></td>
+    <td><img src="docs/screenshots/06_stocks_chart_risk.jpg" alt="Stocks Chart & Risk" width="480"/><br/><sub><b>Performance Chart</b> — rolling returns vs benchmark + risk panel</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/07_stocks_performance.jpg" alt="Stocks Performance & XIRR" width="480"/><br/><sub><b>Performance & XIRR</b> — best/worst performers, full holdings table</sub></td>
+    <td><img src="docs/screenshots/08_stocks_pnl.jpg" alt="Realized P&L" width="480"/><br/><sub><b>Realized P&L</b> — LTCG/STCG breakdown with per-lot detail</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/09_stocks_tax.jpg" alt="Tax Planner" width="480"/><br/><sub><b>Tax Planner</b> — estimated liability at current FY rates</sub></td>
+    <td><img src="docs/screenshots/10_stocks_trades.jpg" alt="Trade History" width="480"/><br/><sub><b>Trade History</b> — coverage timeline and gap detection</sub></td>
+  </tr>
+</table>
+
+### Mutual Funds
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/11_mf_overview.jpg" alt="MF Overview" width="480"/><br/><sub><b>Overview</b> — NAV, gain/loss, holding duration per fund</sub></td>
+    <td><img src="docs/screenshots/12_mf_allocation.jpg" alt="MF Allocation" width="480"/><br/><sub><b>Allocation</b> — asset type, category, and AMC breakdown</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/13_mf_performance.jpg" alt="MF Performance" width="480"/><br/><sub><b>Performance</b> — portfolio XIRR, CAGR, best vs underperformers</sub></td>
+    <td><img src="docs/screenshots/14_mf_tax.jpg" alt="MF Tax Planner" width="480"/><br/><sub><b>Tax Planner</b> — LTCG / STCG split with estimated liability</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/15_mf_risk.jpg" alt="MF Risk" width="480"/><br/><sub><b>Risk</b> — Sharpe ratio, std dev, max drawdown, beta per fund</sub></td>
+  </tr>
+</table>
 
 ---
 
@@ -159,6 +204,8 @@ Zerodha, Groww, Upstox, and Angel One tradebook CSVs are all supported. Upload a
 │   ├── app/              # Next.js app directory
 │   ├── components/       # Shared UI components
 │   └── lib/              # API helpers, auth utils
+├── docs/
+│   └── screenshots/      # UI screenshots
 └── README.md
 ```
 
