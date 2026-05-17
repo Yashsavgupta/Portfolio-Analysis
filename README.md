@@ -51,6 +51,21 @@ Built by [Yashsav Gupta](https://www.linkedin.com/in/yashsav-gupta/)
 
 ---
 
+## Sample Data
+
+Want to try the app without exporting from a real broker? Use the sample CSVs in [`sample_data/`](sample_data/):
+
+| File | Upload at | Simulates |
+|---|---|---|
+| `sample_stock_holdings.csv` | Import Holdings | Zerodha holdings export — 14 stocks |
+| `sample_stock_tradebook.csv` | Import Tradebook | Zerodha tradebook — 6 years of trades |
+| `sample_mf_holdings.csv` | Import Holdings | INDmoney MF holdings export — 5 funds |
+| `sample_mf_cas.csv` | Import CAS | CAMS CAS statement — 5 funds, 6 years of SIPs |
+
+Import all four to get a fully populated demo with stocks, mutual funds, P&L, tax estimates, and risk metrics.
+
+---
+
 ## Features
 
 **Stocks**
